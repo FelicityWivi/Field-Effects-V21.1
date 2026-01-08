@@ -2,4 +2,4 @@
 Version    = 2.0.0
 Essentials = 21.1
 Requires   = v21.1 Hotfixes, 1.0.9
-Credits    = Fanfan, TheOnlyFelicity
+Credits    = Fanfan, TheOnlyFelicity, BloodyNeonz (Pokemon Inritum), DarkWolf
