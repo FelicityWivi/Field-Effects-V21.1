@@ -4,7 +4,7 @@
 #===============================================================================
 class Battle::Move::UserTakesTargetItem < Battle::Move
   def pbBaseDamage(baseDmg, user, target)
-    if Settings::MECHANICS_GENERATION >= 6 && %i[backalley].any?{|f| is_field?(f)}
+    if Settings::MECHANICS_GENERATION >= 6 && %i[backalley].any?{|f| @battle.is_field?(f)}
        target.item && !target.unlosableItem?(target.item)
       # NOTE: Damage is still boosted even if target has Sticky Hold or a
       #       substitute.
@@ -137,7 +137,7 @@ class Battle::Move::UserTargetSwapItems < Battle::Move
     @battle.pbDisplay(_INTL("{1} obtained {2}.", target.pbThis, oldUserItemName)) if oldUserItem
     user.pbHeldItemTriggerCheck
     target.pbHeldItemTriggerCheck
-    if %i[backalley].any?{|f| is_field?(f)}
+    if %i[backalley].any?{|f| @battle.is_field?(f)}
       case id
       when :SWITCHEROO
         if user.pbCanRaiseStatStage?(:ATTACK, user)
@@ -271,7 +271,7 @@ class Battle::Move::CorrodeTargetItem < Battle::Move
     @battle.corrosiveGas[target.index % 2][target.pokemonIndex] = true
     @battle.pbDisplay(_INTL("{1} corroded {2}'s {3}!",
                             user.pbThis, target.pbThis(true), target.itemName))
-    if %i[city backalley].any?{|f| is_field?(f)}
+    if %i[city backalley].any?{|f| @battle.is_field?(f)}
       showAnim = true
       if target.pbCanLowerStatStage?(:ATTACK, target, self)
         showAnim = false if target.pbLowerStatStage(:ATTACK, 1, target, showAnim)
@@ -289,7 +289,7 @@ class Battle::Move::CorrodeTargetItem < Battle::Move
         target.pbLowerStatStage(:SPEED, 1, target, showAnim)
       end
     end
-    if %i[corrosive].any?{|f| is_field?(f)}
+    if %i[corrosive].any?{|f| @battle.is_field?(f)}
       showAnim = true
       if target.pbCanLowerStatStage?(:DEFENSE, target, self)
         showAnim = false if target.pbLowerStatStage(:DEFENSE, 1, target, showAnim)

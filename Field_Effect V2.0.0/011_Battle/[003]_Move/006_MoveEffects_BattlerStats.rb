@@ -8,7 +8,7 @@ class Battle::Move::RaiseUserAttack1 < Battle::Move::StatUpMove
   end
 
   def pbOnStartUse(user, targets)
-    @statUp = [:ATTACK, 3] if %i[beach].any?{|f| is_field?(f)} && %i[MEDITATE].include?(@id)
+    @statUp = [:ATTACK, 3] if %i[beach].any?{|f| @battle.is_field?(f)} && %i[MEDITATE].include?(@id)
   end
 end
 
@@ -186,7 +186,7 @@ class Battle::Move::RaiseUserSpAtk2 < Battle::Move::StatUpMove
 
   def pbOnStartUse(user, targets)
     @statUp = [:SPECIAL_ATTACK, 2]
-    @statUp = [:SPECIAL_ATTACK, 3] if %i[backalley].any?{|f| is_field?(f)}
+    @statUp = [:SPECIAL_ATTACK, 3] if %i[backalley].any?{|f| @battle.is_field?(f)}
   end
 end
 #===============================================================================
@@ -285,7 +285,7 @@ class Battle::Move::RaiseUserSpeed2LowerUserWeight < Battle::Move::StatUpMove
   end
 
   def pbOnStartUse(user, targets)
-    @statUp = [:SPEED, 3] if %i[city].any?{|f| is_field?(f)} && %i[AUTOMATIZE].include?(@id)
+    @statUp = [:SPEED, 3] if %i[city].any?{|f| @battle.is_field?(f)} && %i[AUTOMATIZE].include?(@id)
     end
 end
 
@@ -394,7 +394,7 @@ class Battle::Move::RaiseUserCriticalHitRate2 < Battle::Move
   end
 
   def pbOnStartUse(user, targets)
-    user.effects[PBEffects::FocusEnergy] = 3 if %i[beach].any?{|f| is_field?(f)}
+    user.effects[PBEffects::FocusEnergy] = 3 if %i[beach].any?{|f| @battle.is_field?(f)}
   end
 end
 
@@ -428,7 +428,7 @@ class Battle::Move::RaiseUserAtkSpAtk1 < Battle::Move::MultiStatUpMove
   end
 
   def pbOnStartUse(user, targets)
-    @statUp = [:ATTACK, 2, :SPECIAL_ATTACK, 2] if %i[city].any?{|f| is_field?(f)} && %i[WORKUP].include?(@id)
+    @statUp = [:ATTACK, 2, :SPECIAL_ATTACK, 2] if %i[city].any?{|f| @battle.is_field?(f)} && %i[WORKUP].include?(@id)
     end
 end
 
@@ -524,7 +524,7 @@ class Battle::Move::RaiseUserAtk1Spd2 < Battle::Move::MultiStatUpMove
   end
 
   def pbOnStartUse(user, targets)
-    @statUp = [:SPEED, 2, :ATTACK, 2] if %i[city].any?{|f| is_field?(f)} && %i[SHIFTGEAR].include?(@id)
+    @statUp = [:SPEED, 2, :ATTACK, 2] if %i[city].any?{|f| @battle.is_field?(f)} && %i[SHIFTGEAR].include?(@id)
   end
 end
 #===============================================================================
@@ -558,7 +558,7 @@ class Battle::Move::RaiseUserSpAtkSpDef1 < Battle::Move::MultiStatUpMove
   end
 
   def pbOnStartUse(user, targets)
-    @statUp = [:SPECIAL_ATTACK, 2, :SPECIAL_DEFENSE, 2] if %i[beach].any?{|f| is_field?(f)} && %i[CALMMIND].include?(@id)
+    @statUp = [:SPECIAL_ATTACK, 2, :SPECIAL_DEFENSE, 2] if %i[beach].any?{|f| @battle.is_field?(f)} && %i[CALMMIND].include?(@id)
   end
 end
 
@@ -1043,9 +1043,9 @@ class Battle::Move::LowerTargetSpAtk1 < Battle::Move::TargetStatDownMove
 
   def pbOnStartUse(user, targets)
     @statDown = [:SPECIAL_ATTACK, 1]
-    @statDown = [:SPECIAL_ATTACK, 2] if %i[backalley].any?{|f| is_field?(f)} &&
+    @statDown = [:SPECIAL_ATTACK, 2] if %i[backalley].any?{|f| @battle.is_field?(f)} &&
                                         id == :SNARL
-    @statDown = [:SPECIAL_ATTACK, 2] if %i[swamp].any?{|f| is_field?(f)} &&
+    @statDown = [:SPECIAL_ATTACK, 2] if %i[swamp].any?{|f| @battle.is_field?(f)} &&
                                         id == :STRUGGLEBUG
   end
 end
@@ -1129,9 +1129,9 @@ class Battle::Move::LowerTargetSpDef2 < Battle::Move::TargetStatDownMove
 
   def pbOnStartUse(user, targets)
     @statDown = [:SPECIAL_DEFENSE, 2]
-    @statDown = [:SPECIAL_DEFENSE, 3] if %i[backalley].any?{|f| is_field?(f)} &&
+    @statDown = [:SPECIAL_DEFENSE, 3] if %i[backalley].any?{|f| @battle.is_field?(f)} &&
                                          id == :FAKETEARS
-    @statDown = [:SPECIAL_DEFENSE, 3] if %i[factory].any?{|f| is_field?(f)} &&
+    @statDown = [:SPECIAL_DEFENSE, 3] if %i[factory].any?{|f| @battle.is_field?(f)} &&
                                          id == :METALSOUND
   end
 end
@@ -1227,21 +1227,14 @@ class Battle::Move::LowerTargetAccuracy1 < Battle::Move::TargetStatDownMove
 
   def pbOnStartUse(user, targets)
     @statDown = [:ACCURACY, 1]
-    @statDown = [:ACCURACY, 2] if %i[city backalley volcanic volcanotop].any?{|f| is_field?(f)} &&
+    @statDown = [:ACCURACY, 2] if %i[city backalley volcanic volcanotop].any?{|f| @battle.is_field?(f)} &&
                                   id == :SMOKESCREEN
-    @statDown = [:ACCURACY, 2] if %i[shortcircuit].any?{|f| is_field?(f)} &&
+    @statDown = [:ACCURACY, 2] if %i[shortcircuit].any?{|f| @battle.is_field?(f)} &&
                                   id == :FLASH
-    @statDown = [:ACCURACY, 2] if %i[beach desert].any?{|f| is_field?(f)} &&
+    @statDown = [:ACCURACY, 2] if %i[beach desert].any?{|f| @battle.is_field?(f)} &&
                                   id == :SANDATTACK
-    @statDown = [:ACCURACY, 2] if %i[beach desert].any?{|f| is_field?(f)} &&
+    @statDown = [:ACCURACY, 2] if %i[beach desert].any?{|f| @battle.is_field?(f)} &&
                                   id == :KINESIS
-  end
-
-  def pbBaseAccuracy(user, target)
-    if id == :MUDDYWATER && %i[water murkwater].any?{|f| is_field?(f)}
-      return 100
-    end
-    return super
   end
 end
 
@@ -1798,7 +1791,7 @@ class Battle::Move::UserCopyTargetStatStages < Battle::Move
     @battle.pbDisplay(_INTL("{1} copied {2}'s stat changes!", user.pbThis, target.pbThis(true)))
   end
   def pbEffectGeneral(user)
-    return false if %i[beach].any?{|f| is_field?(f)}
+    return false if %i[beach].any?{|f| @battle.is_field?(f)}
     old_status = user.status
     user.pbCureStatus(false)
     case old_status

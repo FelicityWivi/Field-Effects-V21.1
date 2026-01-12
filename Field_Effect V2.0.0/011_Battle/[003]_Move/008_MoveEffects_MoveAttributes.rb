@@ -1052,7 +1052,7 @@ end
 #===============================================================================
 class Battle::Move::RecoilThirdOfDamageDealt < Battle::Move::RecoilMove
   def pbRecoilDamage(user, target)
-    if %i[beach water].any?{|f| is_field?(f)} && id == :WAVECRASH
+    if %i[beach water].any?{|f| @battle.is_field?(f)} && id == :WAVECRASH
       return (target.damageState.totalHPLost / 4.0).round
     else
       return (target.damageState.totalHPLost / 3.0).round

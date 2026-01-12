@@ -96,8 +96,8 @@ class Battle::Move::LowerTargetAtkSpAtk1SwitchOutUser < Battle::Move::TargetMult
 
   def pbOnStartUse(user, targets)
     @statDown = [:ATTACK, 1, :SPECIAL_ATTACK, 1]
-    @statDown = [:ATTACK, 2, :SPECIAL_ATTACK, 2] if %i[backalley].any?{|f| is_field?(f)}
-    @statDown = [:ATTACK, 1, :SPECIAL_ATTACK, 1, :SPEED, 1] if %i[frozendimensional].any?{|f| is_field?(f)}
+    @statDown = [:ATTACK, 2, :SPECIAL_ATTACK, 2] if %i[backalley].any?{|f| @battle.is_field?(f)}
+    @statDown = [:ATTACK, 1, :SPECIAL_ATTACK, 1, :SPEED, 1] if %i[frozendimensional].any?{|f| @battle.is_field?(f)}
   end
 
   def pbEndOfMoveUsageEffect(user, targets, numHits, switchedBattlers)
@@ -296,7 +296,7 @@ class Battle::Move::BindTarget < Battle::Move
     when :WRAP
       msg = _INTL("{1} was wrapped by {2}!", target.pbThis, user.pbThis(true))
     end
-        if id == :WHIRLPOOL && %i[water underwater].any?{|f| is_field?(f)}
+        if id == :WHIRLPOOL && %i[water underwater].any?{|f| @battle.is_field?(f)}
       target.effects[PBEffects::Whirlpool] = true
     end
     @battle.pbDisplay(msg)
@@ -444,7 +444,7 @@ class Battle::Move::PursueSwitchingFoe < Battle::Move
   end
   
   def pbEffectAfterAllHits(user, target)
-    return if !%i[backalley].any?{|f| is_field?(f)}
+    return if !%i[backalley].any?{|f| @battle.is_field?(f)}
     return if !target.damageState.fainted
     return if !user.pbCanRaiseStatStage?(:ATTACK, user, self)
     user.pbRaiseStatStage(:ATTACK, 1, user)

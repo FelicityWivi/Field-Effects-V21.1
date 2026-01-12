@@ -57,12 +57,12 @@ end
 #===============================================================================
 class Battle::Move::HealUserDependingOnSandstorm < Battle::Move::HealingMove
   def pbHealAmount(user)
-    if %i[water murkwater].any?{|f| is_field?(f)} && user.pbCanRaiseStatStage?(:DEFENSE, user, self)
+    if %i[water murkwater].any?{|f| @battle.is_field?(f)} && user.pbCanRaiseStatStage?(:DEFENSE, user, self)
       user.pbRaiseStatStage(:DEFENSE, 2, user)
     end
-    return (user.totalhp) if %i[beach].any?{|f| is_field?(f)}
+    return (user.totalhp) if %i[beach].any?{|f| @battle.is_field?(f)}
     return (user.totalhp * 2 / 3.0).round if (user.effectiveWeather == :Sandstorm ||
-                                              %i[beach].any?{|f| is_field?(f)})
+                                              %i[beach].any?{|f| @battle.is_field?(f)})
     return (user.totalhp / 2.0).round
   end
 end
@@ -236,7 +236,7 @@ class Battle::Move::HealUserAndAlliesQuarterOfTotalHP < Battle::Move
   end
 
   def pbEffectGeneral(user)
-    if %i[water].any?{|f| is_field?(f)} && !user.effects[PBEffects::AquaRing]
+    if %i[water].any?{|f| @battle.is_field?(f)} && !user.effects[PBEffects::AquaRing]
       user.effects[PBEffects::AquaRing] = true
       choice = user.pbDirectOpposing
       @battle.pbAnimation(:AQUARING, user, choice)

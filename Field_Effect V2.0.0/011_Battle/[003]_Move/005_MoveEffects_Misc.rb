@@ -376,7 +376,7 @@ class Battle::Move::AddSpikesToFoeSide < Battle::Move
   def canMagicCoat?; return true; end
 
   def pbMoveFailed?(user, targets)
-    if %i[water].any?{|f| is_field?(f)}
+    if %i[water].any?{|f| @battle.is_field?(f)}
       @battle.pbDisplay(_INTL("...The spikes sank into the water and vanished!"))
       return true
     end
@@ -402,7 +402,7 @@ class Battle::Move::AddToxicSpikesToFoeSide < Battle::Move
   def canMagicCoat?; return true; end
 
   def pbMoveFailed?(user, targets)
-    if %i[water].any?{|f| is_field?(f)}
+    if %i[water].any?{|f| @battle.is_field?(f)}
       @battle.pbDisplay(_INTL("...The spikes sank into the water and vanished!"))
       return true
     end
