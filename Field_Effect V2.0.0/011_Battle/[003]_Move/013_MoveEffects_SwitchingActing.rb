@@ -297,7 +297,7 @@ class Battle::Move::BindTarget < Battle::Move
       msg = _INTL("{1} was wrapped by {2}!", target.pbThis, user.pbThis(true))
     end
         if id == :WHIRLPOOL && %i[water underwater].any?{|f| @battle.is_field?(f)}
-      target.effects[PBEffects::Whirlpool] = true
+      target.effects[PBEffects::TrappingMove] = :WHIRLPOOL
     end
     @battle.pbDisplay(msg)
   end
