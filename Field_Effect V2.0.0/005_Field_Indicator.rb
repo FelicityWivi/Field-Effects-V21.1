@@ -16,6 +16,7 @@ class Battle
     return nil unless battler && move
     return 1.0 unless has_field?
     targets = battlers.select { |b| b && !b.fainted? && b.opposes?(battler) }
+    return 1.0 unless move.damagingMove?
     return 1.0 if targets.empty?   
     target = targets.first
     type = move.pbCalcType(battler)
