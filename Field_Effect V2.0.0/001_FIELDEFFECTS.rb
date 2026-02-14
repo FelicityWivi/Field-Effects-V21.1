@@ -5,7 +5,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		""
 	],
-	:graphic => ["Indoor","IndoorA","IndoorB","IndoorC","IndoorD","IndoorE","IndoorVenam","AxisHigh","NightmareSchool"],
+	:graphic => ["Indoor"],
 	:secretPower => "TRIATTACK",
 	:naturePower => :TRIATTACK,
 	:mimicry => :NORMAL,	
@@ -315,7 +315,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The field is molten!"
 	],
-	:graphic => ["Volcano"],
+	:graphic => ["Volcanic"],
 	:secretPower => "FLAMETHROWER",
 	:naturePower => :FLAMETHROWER,
 	:mimicry => :FIRE,
@@ -783,7 +783,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The field is abound with trees."
 	],
-	:graphic => ["Forest","GoldForest","ForestCave"],
+	:graphic => ["Forest"],
 	:secretPower => "WOODHAMMER",
 	:naturePower => :WOODHAMMER,
 	:mimicry => :BUG,
@@ -846,7 +846,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The mountain top is super-heated!"
 	],
-	:graphic => ["Voltop"],
+	:graphic => ["Volcanictop"],
 	:secretPower => "FLAMEBURST",
 	:naturePower => :ERUPTION,
 	:mimicry => :FIRE,
@@ -1074,12 +1074,12 @@ FIELDEFFECTS = {
 		},
 	},
 },
-:ASHENBEACH => {
+:BEACH => {
 	:name => "Beach",
 	:fieldMessage => [
 		"Focus and relax to the sound of crashing waves..."
 	],
-	:graphic => ["AshenBeach","Beach","BeachEve","BeachNight"],
+	:graphic => ["Beach","BeachEve","BeachNight"],
 	:secretPower => "MUDSHOT",
 	:naturePower => :MEDITATE,
 	:mimicry => :GROUND,
@@ -1397,7 +1397,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The cave is littered with crystals."
 	],
-	:graphic => ["CrystalCavern","AmethystCave","CaveAqua"],
+	:graphic => ["CrystalCavern"],
 	:secretPower => "POWERGEM",
 	:naturePower => :POWERGEM,
 	:mimicry => :DRAGON,
@@ -2215,7 +2215,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"Darkness Radiates."
 	],
-	:graphic => ["Dimensional","Dimensional1","AelitaRift","DimensionalGard"],
+	:graphic => ["Dimensional"],
 	:secretPower => "DARKPULSE",
 	:naturePower => :DARKPULSE,
 	:mimicry => :DARK,
@@ -2290,7 +2290,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The field is haunted!"
 	],
-	:graphic => ["Haunted","Haunted2","Haunted3"],
+	:graphic => ["Haunted"],
 	:secretPower => "SHADOWCLAW",
 	:naturePower => :PHANTOMFORCE,
 	:mimicry => :GHOST,
@@ -2732,7 +2732,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The streets are busy..."
 	],
-	:graphic => ["GDCCentralSquare","City","GearenNew","GDCDreamDistrict","GDCDistrictOfHope","GDCJudicialDistrict","GDCScholarDistrict"],
+	:graphic => ["City"],
 	:secretPower => "SMOG",
 	:naturePower => :SMOG,
 	:mimicry => :NORMAL,
