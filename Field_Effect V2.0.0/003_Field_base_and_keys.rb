@@ -342,9 +342,9 @@ end
 # :switch_in
 class Battle
   alias field_pbOnBattlerEnteringBattle pbOnBattlerEnteringBattle
-  def pbOnBattlerEnteringBattle(idxBattler)
-    # Call original method first
-    field_pbOnBattlerEnteringBattle(idxBattler)
+  def pbOnBattlerEnteringBattle(idxBattler, *args)
+    # Call original method first with all arguments
+    field_pbOnBattlerEnteringBattle(idxBattler, *args)
     
     # Handle both single index and array of indices
     battler_indices = idxBattler.is_a?(Array) ? idxBattler : [idxBattler]

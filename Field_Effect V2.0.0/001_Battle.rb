@@ -164,6 +164,47 @@ class Battle
     create_new_field(advantageous_fields.sample, duration)
   end
 
+  # Create a field overlay (like Electric Terrain transitioning on top of Grassy Terrain)
+  # Overlays stack on top of the current field without removing it
+  def create_field_overlay(field_id, duration = Battle::Field::DEFAULT_FIELD_DURATION)
+    return unless field_id
+    return if try_create_zero_duration_field?(duration)
+    formatted_field_id = field_id.to_s.downcase.to_sym
+    field_class_name = "Battle::Field_#{formatted_field_id}"
+    
+    if $DEBUG
+      Console.echo_li("Attempting to create field overlay: #{field_id} -> #{formatted_field_id}")
+      Console.echo_li("Current field: #{@current_field.name}")
+    end
+    
+    unless Object.const_defined?(field_class_name)
+      Console.echo_li("Field class #{field_class_name} not found!") if $DEBUG
+      return
+    end
+    
+    # Create the overlay field
+    new_field = Object.const_get(field_class_name).new(self, duration)
+    new_field.instance_variable_set(:@is_overlay, true)
+    
+    # Add as an overlay without ending the current field
+    add_field(new_field)
+    set_current_field(new_field)
+    
+    # Show overlay announcement
+    if has_field?
+      field_announcement(:start)
+      if $DEBUG
+        Console.echo_li("Overlay #{field_name} stacked on top of #{@stacked_fields[-2].name}")
+      end
+    end
+    
+    apply_field_effect(:set_field_battle)
+    eachBattler { |battler| apply_field_effect(:set_field_battler_universal, battler) }
+    eachBattler { |battler| apply_field_effect(:set_field_battler, battler) }
+    
+    return new_field
+  end
+
   def can_create_field?(field_id)
     return true unless has_field?
     creatable_field = @current_field.creatable_field
@@ -245,19 +286,28 @@ class Battle
     return new_field
   end
 
-=begin
+  # Hook into the end of round phase to trigger field effects
   alias field_pbEndOfRoundPhase pbEndOfRoundPhase
-  def pbEndOfRoundPhase # recommend
-    end_of_round_field_process # it is better to add this line in front of pbGainExp in pbEndOfRoundPhase
+  def pbEndOfRoundPhase
+    end_of_round_field_process # Process field effects before other end-of-round effects
     field_pbEndOfRoundPhase
   end
-=end
 
   def end_of_round_field_process
     return unless has_field?
+    
+    if $DEBUG
+      Console.echo_li("=== End of Round Field Process ===")
+      Console.echo_li("Current field: #{@current_field.name}")
+      Console.echo_li("Field duration: #{@current_field.duration}")
+    end
 
     apply_field_effect(:EOR_field_battle)
     eachBattler do |battler|
+      next unless battler && !battler.fainted?
+      if $DEBUG
+        Console.echo_li("Processing EOR effects for #{battler.pbThis}")
+      end
       apply_field_effect(:EOR_field_battler, battler)
       battler.pbFaint if battler.fainted?
       return if decision != 0 # end of battle

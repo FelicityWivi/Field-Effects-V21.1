@@ -92,6 +92,21 @@ class FieldTextParser
         
         # Parse change effects
         parse_change_effects(data[:changeEffects]) if data[:changeEffects]
+        
+        # Parse end-of-round healing
+        parse_eor_healing(data[:eorHeal]) if data[:eorHeal]
+        
+        # Parse status move modifiers (for UI highlighting)
+        parse_status_mods(data[:statusMods]) if data[:statusMods]
+        
+        # Parse don't change backup list
+        parse_dont_change_backup(data[:dontChangeBackup]) if data[:dontChangeBackup]
+        
+        # Parse seed effects
+        parse_seed_effects(data[:seed]) if data[:seed]
+        
+        # Parse overlay effects (Rejuvenation-style overlays)
+        parse_overlay_effects(data[:overlay]) if data[:overlay]
       end
       
       # Helper methods for parsing
@@ -328,6 +343,179 @@ class FieldTextParser
             end
           end
         }
+      end
+      
+      define_method(:parse_eor_healing) do |eor_heal|
+        return unless eor_heal
+        
+        # eorHeal format: { fraction: 16, condition: "!battler.airborne?", message: "{1} was healed!" }
+        @eor_heal_fraction = eor_heal[:fraction] || eor_heal[:hp_fraction] || 16
+        @eor_heal_condition = eor_heal[:condition]
+        @eor_heal_message = eor_heal[:message]
+      end
+      
+      define_method(:parse_status_mods) do |status_mods|
+        return unless status_mods
+        
+        # Store status mods for UI highlighting and potential future use
+        @status_mods = status_mods.is_a?(Array) ? status_mods : []
+        
+        # Could be used for move highlighting in the UI
+        # Format: array of move symbols that are boosted/modified on this field
+      end
+      
+      define_method(:parse_dont_change_backup) do |dont_change_backup|
+        return unless dont_change_backup
+        
+        # Store moves that shouldn't backup the field when changing
+        @dont_change_backup = dont_change_backup.is_a?(Array) ? dont_change_backup : []
+        
+        # This affects field change behavior - these moves create new fields without storing backup
+        # Implementation would need to be added to field change logic if needed
+      end
+      
+      define_method(:parse_seed_effects) do |seed_data|
+        return unless seed_data && seed_data.is_a?(Hash)
+        
+        # Store seed configuration
+        @seed_type = seed_data[:seedtype]
+        @seed_effect = seed_data[:effect]
+        @seed_duration = seed_data[:duration]
+        @seed_message = seed_data[:message]
+        @seed_animation = seed_data[:animation]
+        @seed_stats = seed_data[:stats] || {}
+        
+        # Create effect for seed activation
+        if @seed_type
+          @effects[:on_seed_use] = proc { |battler, item|
+            next unless item == @seed_type
+            
+            # Apply stat changes
+            if @seed_stats && !@seed_stats.empty?
+              @seed_stats.each do |stat, amount|
+                battler.pbRaiseStatStage(stat, amount, battler)
+              end
+            end
+            
+            # Apply special effect
+            if @seed_effect
+              if @seed_duration == true
+                battler.effects[@seed_effect] = -1  # Permanent effect
+              elsif @seed_duration.is_a?(Integer)
+                battler.effects[@seed_effect] = @seed_duration
+              end
+            end
+            
+            # Show message
+            if @seed_message && !@seed_message.empty?
+              @battle.pbDisplay(_INTL(@seed_message, battler.pbThis))
+            end
+            
+            # Play animation
+            if @seed_animation
+              @battle.pbAnimation(@seed_animation, battler, battler)
+            end
+          }
+        end
+      end
+      
+      define_method(:parse_overlay_effects) do |overlay_data|
+        return unless overlay_data && overlay_data.is_a?(Hash)
+        
+        # Parse overlay-specific damage mods (Rejuvenation feature)
+        if overlay_data[:damageMods] && !overlay_data[:damageMods].empty?
+          parse_overlay_damage_mods(overlay_data[:damageMods], overlay_data[:moveMessages])
+        end
+        
+        # Parse overlay-specific type boosts
+        if overlay_data[:typeBoosts] && !overlay_data[:typeBoosts].empty?
+          parse_overlay_type_boosts(overlay_data[:typeBoosts], overlay_data[:typeMessages], overlay_data[:typeCondition])
+        end
+        
+        # Parse overlay-specific type mods
+        if overlay_data[:typeMods] && !overlay_data[:typeMods].empty?
+          parse_overlay_type_mods(overlay_data[:typeMods])
+        end
+        
+        # Store overlay status mods
+        if overlay_data[:statusMods]
+          @overlay_status_mods = overlay_data[:statusMods].is_a?(Array) ? overlay_data[:statusMods] : []
+        end
+      end
+      
+      define_method(:parse_overlay_damage_mods) do |damage_mods, move_messages|
+        # Similar to regular damage mods but marked as overlay effects
+        damage_mods.each do |multiplier, moves|
+          next if moves.nil? || moves.empty?
+          
+          message = nil
+          if move_messages
+            move_messages.each do |msg, msg_moves|
+              if (msg_moves & moves).any?
+                message = msg
+                break
+              end
+            end
+          end
+          
+          mult_type = multiplier == 0 ? nil : :power_multiplier
+          next unless mult_type
+          
+          # Mark these as overlay multipliers by adding metadata
+          @multipliers[[mult_type, multiplier, message, :overlay]] = proc { |user, target, numTargets, move, type, power, mults|
+            # Only apply if this field is active as an overlay
+            next true if moves.include?(move.id)
+          }
+        end
+      end
+      
+      define_method(:parse_overlay_type_boosts) do |type_boosts, type_messages, type_conditions|
+        type_boosts.each do |multiplier, types|
+          next if types.nil? || types.empty?
+          
+          message = nil
+          if type_messages
+            type_messages.each do |msg, msg_types|
+              if (msg_types & types).any?
+                message = msg
+                break
+              end
+            end
+          end
+          
+          # Mark as overlay multiplier
+          @multipliers[[:power_multiplier, multiplier, message, :overlay]] = proc { |user, target, numTargets, move, type, power, mults|
+            next false unless types.include?(type)
+            
+            if type_conditions && type_conditions[type]
+              condition = type_conditions[type]
+              begin
+                condition_str = condition.dup
+                condition_str.gsub!('attacker', 'user')
+                condition_str.gsub!('opponent', 'target')
+                condition_str.gsub!('self', 'move')
+                condition_str.gsub!('isAirborne?', 'airborne?')
+                condition_str.gsub!('!user.airborne?', 'user.grounded?')
+                condition_str.gsub!('!target.airborne?', 'target.grounded?')
+                
+                result = eval(condition_str)
+                next result
+              rescue => e
+                next true
+              end
+            end
+            
+            next true
+          }
+        end
+      end
+      
+      define_method(:parse_overlay_type_mods) do |type_mods|
+        # Store overlay type mods separately so they can be checked when field is an overlay
+        @overlay_type_mods = type_mods
+        
+        # These would need special handling in the move_second_type effect
+        # to check if the field is currently active as an overlay
       end
     end
     

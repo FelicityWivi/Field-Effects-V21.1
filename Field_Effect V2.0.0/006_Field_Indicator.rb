@@ -29,7 +29,8 @@ class Battle
     } 
     total_multiplier = 1.0
     field = @current_field
-    if field.multipliers
+    # Safety check - ensure multipliers exists and is a hash
+    if field.multipliers && field.multipliers.is_a?(Hash) && !field.multipliers.empty?
       field.multipliers.each do |mult_data, calc_proc|
         base_mult = mult_data[1]
         next if base_mult == 1.0
@@ -59,26 +60,70 @@ end
 
 class Battle::Scene::FightMenu
   
-  alias terrain_arrows_refresh_button_names refreshButtonNames
+  alias combined_indicators_refresh_button_names refreshButtonNames
   def refreshButtonNames
-    terrain_arrows_refresh_button_names
+    combined_indicators_refresh_button_names
+    return if !@overlay || !@overlay.bitmap
+    
     imgPos = []
     icon_width = 26
     icon_height = 26
+    padding = 8
+    left_shift = 10   # how far left to move the effectiveness icon
+    
     moves = @battler.moves
+    target = @battler.battle.battlers.find { |b| b && b.opposes?(@battler) && !b.fainted? }
+    
     @buttons.each_with_index do |button, i|
       next if !@visibility["button_#{i}"]
-      x = button.x - self.x + button.src_rect.width - icon_width
-      y = button.y - self.y + button.src_rect.height - icon_height
-      indicator = @battler.battle.field_move_indicator(@battler, moves[i])
-      file = case indicator
-      when :boost then "Graphics/UI/Battle/arrow_up"
-      when :nerf then "Graphics/UI/Battle/arrow_down"
-      else nil
+      move = moves[i]
+      next if !move
+      
+      # Field indicator (bottom-right corner)
+      begin
+        field_x = button.x - self.x + button.src_rect.width - icon_width
+        field_y = button.y - self.y + button.src_rect.height - icon_height
+        indicator = @battler.battle.field_move_indicator(@battler, move)
+        field_file = case indicator
+        when :boost then "Graphics/UI/Battle/arrow_up"
+        when :nerf then "Graphics/UI/Battle/arrow_down"
+        else nil
+        end
+        imgPos.push([field_file, field_x, field_y]) if field_file && pbResolveBitmap(field_file)
+      rescue => e
+        # Silent fail for field indicator
       end
-      imgPos.push([file, x, y]) if file
+      
+      # Effectiveness indicator (top-right corner)
+      begin
+        next unless target
+        eff_x = button.x - self.x + button.src_rect.width - icon_width - padding - left_shift
+        eff_y = button.y - self.y + padding
+        
+        # Calculate effectiveness
+        next unless move.damagingMove?
+        target_types = target.pbTypes(true)
+        effectiveness = Effectiveness.calculate(move.type, *target_types)
+        eff = nil
+        eff = :super  if Effectiveness.super_effective?(effectiveness)
+        eff = :resist if Effectiveness.not_very_effective?(effectiveness)
+        eff = :immune if Effectiveness.ineffective?(effectiveness)
+        next if !eff
+        
+        eff_file = case eff
+        when :super  then "Graphics/UI/Battle/type_super"
+        when :resist then "Graphics/UI/Battle/type_resist"
+        when :immune then "Graphics/UI/Battle/type_immune"
+        else nil
+        end
+        
+        imgPos.push([eff_file, eff_x, eff_y]) if eff_file && pbResolveBitmap(eff_file)
+      rescue => e
+        # Silent fail for effectiveness indicator
+      end
     end
-    pbDrawImagePositions(@overlay.bitmap, imgPos)
+    
+    pbDrawImagePositions(@overlay.bitmap, imgPos) if imgPos.any?
   end
   
 end

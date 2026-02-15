@@ -6,6 +6,11 @@ class Battle::Field
   attr_reader :tailwind_duration, :floral_heal_amount
   attr_reader :shelter_type, :ability_activation
   attr_reader :creatable_field, :always_online
+  attr_reader :eor_heal_fraction, :eor_heal_condition, :eor_heal_message
+  attr_reader :is_overlay
+  attr_reader :status_mods, :dont_change_backup
+  attr_reader :seed_type, :seed_effect, :seed_duration, :seed_message, :seed_animation, :seed_stats
+  attr_reader :overlay_status_mods, :overlay_type_mods
 
   DEFAULT_FIELD_DURATION  = 5
   FIELD_DURATION_EXPANDED = 3
@@ -56,8 +61,24 @@ class Battle::Field
     @ability_activation        = []
     @creatable_field           = []
     @always_online             = []
+    @eor_heal_fraction         = nil # Fraction of HP to heal (e.g., 16 for 1/16th HP)
+    @eor_heal_condition        = nil # Condition string for healing (e.g., "!battler.airborne?")
+    @eor_heal_message          = nil # Message to display when healing
+    @is_overlay                = false # Whether this field is an overlay on another field
+    @status_mods               = [] # List of status moves boosted/modified by this field
+    @dont_change_backup        = [] # Moves that don't backup field when changing
+    @seed_type                 = nil # Type of seed activated on this field
+    @seed_effect               = nil # Effect applied by seed
+    @seed_duration             = nil # Duration of seed effect
+    @seed_message              = nil # Message shown when seed is used
+    @seed_animation            = nil # Animation played when seed is used
+    @seed_stats                = {} # Stat changes from seed
+    @overlay_status_mods       = [] # Status moves for overlay mode
+    @overlay_type_mods         = {} # Type modifications for overlay mode
 
     @effects[:calc_damage] = proc { |user, target, numTargets, move, type, power, mults|
+      # Safety check - ensure multipliers is initialized and not nil
+      return unless @multipliers && @multipliers.is_a?(Hash)
       @multipliers.each do |mult_data, calc_proc|
         mult = mult_data[1]
         next if mult == 1.0
@@ -106,6 +127,60 @@ class Battle::Field
 
     @effects[:shelter_type]        = proc { |_user, _targets, _move| next @shelter_type }
     @effects[:ability_activation]  = proc { |*_args|                 next @ability_activation } # really dont know what argument will be passed
+
+    # End of round healing effect
+    @effects[:EOR_field_battler] = proc { |battler|
+      if $DEBUG
+        Console.echo_li("  EOR_field_battler called for #{battler.pbThis}")
+        Console.echo_li("  Heal fraction: #{@eor_heal_fraction}")
+        Console.echo_li("  Heal condition: #{@eor_heal_condition}")
+      end
+      
+      next unless @eor_heal_fraction && @eor_heal_fraction > 0
+      next if battler.fainted?
+      
+      # Check condition if one exists
+      if @eor_heal_condition
+        begin
+          condition_str = @eor_heal_condition.dup
+          condition_str.gsub!('attacker', 'battler')
+          condition_str.gsub!('opponent', 'battler')
+          condition_str.gsub!('isAirborne?', 'airborne?')
+          condition_str.gsub!('!battler.airborne?', 'battler.grounded?')
+          result = eval(condition_str)
+          if $DEBUG
+            Console.echo_li("  Condition result: #{result}")
+          end
+          next unless result
+        rescue => e
+          if $DEBUG
+            Console.echo_li("  Condition eval error: #{e.message}")
+          end
+          # If condition fails, don't heal
+          next
+        end
+      end
+      
+      # Heal the battler
+      if battler.canHeal?
+        heal_amount = (battler.totalhp / @eor_heal_fraction.to_f).round
+        if $DEBUG
+          Console.echo_li("  Healing #{battler.pbThis} for #{heal_amount} HP (#{battler.hp}/#{battler.totalhp})")
+        end
+        if heal_amount > 0
+          battler.pbRecoverHP(heal_amount)
+          if @eor_heal_message && !@eor_heal_message.empty?
+            @battle.pbDisplay(_INTL(@eor_heal_message, battler.pbThis))
+          else
+            @battle.pbDisplay(_INTL("{1} was healed by the field!", battler.pbThis))
+          end
+        end
+      else
+        if $DEBUG
+          Console.echo_li("  Cannot heal #{battler.pbThis} - canHeal? returned false")
+        end
+      end
+    }
   end
 
   def self.method_missing(method_name, *args, &block)
