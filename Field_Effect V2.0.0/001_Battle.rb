@@ -5,7 +5,7 @@
 
 # search "recommend", and add the new lines to the original method is recommended.
 
-# used for event setting a default field manually, for exmple set_field(:Misty, 4)
+# used for event setting a default field manually, for example set_field(:Misty, 4)
 # :misty, :Misty, "misty", "MiSty" etc. are all acceptable
 # then the next battle will start with Misty field(4 turns)
 # it will reset/clear automatically, so only the next battle will have the field you set
@@ -24,14 +24,34 @@ class Battle
   def initialize(scene, p1, p2, player, opponent) # recommend
     field_initialize(scene, p1, p2, player, opponent)
     @stacked_fields = []
+    @suppress_field_announcements = true  # Suppress during initialization
     create_base_field
+    @fields_initialized = false
   end
 
-  alias field_pbOnAllBattlersEnteringBattle pbOnAllBattlersEnteringBattle
-  def pbOnAllBattlersEnteringBattle # recommend
-    set_default_field
-    apply_field_effect(:begin_battle)
-    field_pbOnAllBattlersEnteringBattle
+  alias field_pbStartBattle pbStartBattle
+  def pbStartBattle # recommend
+    # Don't set fields yet - wait for scene to be ready
+    field_pbStartBattle
+  end
+  
+  # Initialize fields after the battle scene is fully set up
+  alias field_pbBattleLoop pbBattleLoop
+  def pbBattleLoop
+    # Set default field at the very start of the battle loop
+    # At this point, all sprites are guaranteed to exist
+    unless @fields_initialized
+      set_default_field
+      apply_field_effect(:begin_battle)
+      @fields_initialized = true
+      
+      # Now that sprites exist, show the field announcement
+      @suppress_field_announcements = false
+      if has_field? && !@current_field.is_base?
+        field_announcement(:start)
+      end
+    end
+    field_pbBattleLoop
   end
 
   def create_base_field
@@ -45,7 +65,7 @@ class Battle
 
   def set_default_field
     # used for setting a test field, press Ctrl when starts a battle
-    if debugControl
+    if $DEBUG && Input.press?(Input::CTRL)
       set_test_field
       return
     end
@@ -58,16 +78,42 @@ class Battle
     end
 
     duration = Battle::Field::INFINITE_FIELD_DURATION
-    # used for setting a default field depending on backdrop
-    ret = create_new_field(backdrop.to_s.downcase, duration, bg_change: false)
-    return if ret
+    
+    # Get backdrop - in V21.1 it's a property of Battle, not Scene
+    backdrop_name = backdrop if respond_to?(:backdrop)
+    
+    # Debug output
+    if $DEBUG
+      Console.echo_li("=" * 50)
+      Console.echo_li("FIELD ACTIVATION DEBUG")
+      Console.echo_li("Backdrop (raw): #{backdrop_name.inspect}")
+      Console.echo_li("Environment: #{environment rescue 'N/A'}")
+      Console.echo_li("Available fields: #{all_fields.join(', ')}")
+      Console.echo_li("Field data count: #{all_fields_data.size}")
+      Console.echo_li("=" * 50)
+    end
+    
+    # Only proceed if we have a valid backdrop name
+    if backdrop_name && !backdrop_name.to_s.empty?
+      backdrop_sym = backdrop_name.to_s.downcase.to_sym
+      
+      if $DEBUG
+        Console.echo_li("Backdrop (processed): #{backdrop_sym}")
+      end
+      
+      # Try to create field directly from backdrop name
+      ret = create_new_field(backdrop_sym, duration, bg_change: false)
+      return if ret
+    else
+      Console.echo_li("WARNING: No backdrop detected! This might be normal for some battle types.") if $DEBUG
+    end
 
     return unless Battle::Field::ACTIVATE_VARIETY_FIELD_SETTING
 
     # used for setting trainer field, some trainer may has a specific field effect
     if trainerBattle?
       all_fields_data.each do |field, data|
-        trainer_field = @opponent.map(&:name) & data[:trainer_name]
+        trainer_field = opponent.map { |t| t.trainer_type } & data[:trainer_name]
         next if trainer_field.empty?
         create_new_field(field, duration)
         return
@@ -75,16 +121,31 @@ class Battle
     end
 
     # used for setting a default field depending on environment
-    all_fields_data.each do |field, data|
-      next unless data[:environment].any? { |enviro| enviro.to_s.downcase == backdrop.to_s.downcase } ||
-                  data[:environment].any? { |enviro| enviro.to_s.downcase == environment.to_s.downcase }
-      create_new_field(field, duration, bg_change: false)
-      return
+    if backdrop_name && !backdrop_name.to_s.empty?
+      backdrop_sym = backdrop_name.to_s.downcase.to_sym
+      env_sym = environment.to_s.downcase.to_sym rescue nil
+      
+      if $DEBUG
+        Console.echo_li("Checking environment match...")
+        Console.echo_li("Backdrop symbol: #{backdrop_sym}")
+        Console.echo_li("Environment symbol: #{env_sym}")
+      end
+      
+      all_fields_data.each do |field, data|
+        # Check if backdrop matches any environment in the field's data
+        if data[:environment].include?(backdrop_sym) || (env_sym && data[:environment].include?(env_sym))
+          if $DEBUG
+            Console.echo_li("Field #{field} matched! Environment list: #{data[:environment].inspect}")
+          end
+          create_new_field(field, duration, bg_change: false)
+          return
+        end
+      end
     end
 
     # used for setting map field, every battle happens in the map will start with the field you set
     all_fields_data.each do |field, data|
-      next unless data[:map_id].include?($game_map.map_id)
+      next unless data[:map_id].include?($game_map&.map_id)
       create_new_field(field, duration)
       return
     end
@@ -92,10 +153,10 @@ class Battle
     # used for setting a field depending on opposing types
     return unless Battle::Field::OPPOSING_ADVANTAGEOUS_TYPE_FIELD
     opposing_types = party2_able_pkmn_types.clone
-    opposing_advantageous_types = trainerBattle? ? opposing_types.most_elements : opposing_types
+    opposing_advantageous_types = trainerBattle? ? opposing_types.max_by { |t| opposing_types.count(t) } : opposing_types
     advantageous_fields = []
     all_fields_data.each do |field, data|
-      type_fields = opposing_advantageous_types & data[:edge_type]
+      type_fields = [opposing_advantageous_types].flatten & data[:edge_type]
       next if type_fields.empty?
       advantageous_fields << field
     end
@@ -115,8 +176,16 @@ class Battle
     return unless field_id
     return if try_create_zero_duration_field?(duration)
     formatted_field_id = field_id.to_s.downcase.to_sym
-    return unless can_create_field?(formatted_field_id)
     field_class_name = "Battle::Field_#{formatted_field_id}"
+    
+    # Debug output
+    if $DEBUG
+      Console.echo_li("Attempting to create field: #{field_id} -> #{formatted_field_id}")
+      Console.echo_li("Class name: #{field_class_name}")
+      Console.echo_li("Class exists: #{Object.const_defined?(field_class_name)}")
+    end
+    
+    return unless can_create_field?(formatted_field_id)
     return if try_create_base_field?(field_class_name) && !can_create_base_field? # create Base only once
  
     # already exists a field, then try to create a new field
@@ -141,7 +210,11 @@ class Battle
       return
     end
 
-    return unless Object.const_defined?(field_class_name)
+    unless Object.const_defined?(field_class_name)
+      Console.echo_li("Field class #{field_class_name} not found!") if $DEBUG
+      return
+    end
+    
     new_field = Object.const_get(field_class_name).new(self, duration) # create the new field
 
     removed_field = nil
@@ -173,10 +246,10 @@ class Battle
   end
 
 =begin
-  alias field_pbEORSwitch pbEORSwitch
-  def pbEORSwitch(favorDraws = false) # recommend
+  alias field_pbEndOfRoundPhase pbEndOfRoundPhase
+  def pbEndOfRoundPhase # recommend
     end_of_round_field_process # it is better to add this line in front of pbGainExp in pbEndOfRoundPhase
-    field_pbEORSwitch(favorDraws)
+    field_pbEndOfRoundPhase
   end
 =end
 
@@ -187,7 +260,7 @@ class Battle
     eachBattler do |battler|
       apply_field_effect(:EOR_field_battler, battler)
       battler.pbFaint if battler.fainted?
-      return if battler.owner_side_all_fainted? # end of battle
+      return if decision != 0 # end of battle
     end
 
     field_duration_countdown
@@ -231,41 +304,38 @@ class Battle
   end
 
   def end_field
+    return unless has_field?
     field_announcement(:end)
     apply_field_effect(:end_field_battle)
     eachBattler { |battler| apply_field_effect(:end_field_battler, battler) }
   end
 
   def try_create_zero_duration_field?(duration)
-    duration == 0
-  end
-
-  def try_create_infinite_field?(duration)
-    duration == Battle::Field::INFINITE_FIELD_DURATION
-  end
-
-  def can_create_base_field?
-    @stacked_fields.empty?
+    return duration == 0
   end
 
   def try_create_base_field?(field_class_name)
-    field_class_name == "Battle::Field_base"
+    return field_class_name == "Battle::Field_base"
+  end
+
+  def can_create_base_field?
+    return @stacked_fields.empty?
   end
 
   def try_create_current_field?(field_class_name)
-    field_class_name == @current_field.class.to_s
+    return field_class_name == @current_field.class.name
+  end
+
+  def try_create_infinite_field?(duration)
+    return duration == Battle::Field::INFINITE_FIELD_DURATION
   end
 
   def add_field(new_field)
-    @stacked_fields.push(new_field)
+    @stacked_fields << new_field
   end
 
   def add_field_duration(amount = 1)
     @current_field.add_duration(amount)
-  end
-
-  def reduce_field_duration(amount = 1)
-    @current_field.reduce_duration(amount)
   end
 
   def set_field_duration(amount = 5)
@@ -296,10 +366,10 @@ class Battle
     end
 
     if remove_all
-      @stacked_fields.keep_if(&:is_base?)
+      @stacked_fields.keep_if { |f| f.is_base? }
       #echoln("[Field remove] All fields were removed!")
     else
-      @stacked_fields.delete_if(&:is_end?)
+      @stacked_fields.delete_if { |f| f.is_end? }
 =begin
       unless has_field?
         echoln("[Field remove] All ended fields were removed!")
@@ -321,11 +391,16 @@ class Battle
   end
 
   def set_fieldback(change_bg = true)
-    if has_field? && change_bg
-      @scene.set_fieldback
-    else
+    return unless @scene  # Safety check
+    
+    if change_bg && has_field?
+      # Change to field-specific background
+      @scene.set_fieldback(false)
+    elsif change_bg
+      # Restore environment background
       @scene.set_fieldback(true)
     end
+    # If change_bg is false, don't call scene method at all
   end
 
   def apply_field_effect(key, *args, apply_all: false)
@@ -340,6 +415,9 @@ class Battle
   end
 
   def field_announcement(announcement_type)
+    # Don't display announcements if suppressed (during initialization)
+    return if @suppress_field_announcements
+    
     case announcement_type
     when :start
       message = @current_field.field_announcement[:start]
@@ -417,90 +495,49 @@ class Battle
   def is_field?(field_id)
     @current_field.is_field?(field_id)
   end
+
+  def party2_able_pkmn_types
+    types = []
+    pbParty(1).each do |pkmn|
+      next if !pkmn || pkmn.egg?
+      types.concat(pkmn.types)
+    end
+    return types
+  end
 end
 
 class Battle::Scene
   def set_fieldback(set_environment = false)
+    # Safety check - return if sprites aren't initialized yet
+    return unless @sprites
+    
     if set_environment
-      @sprites["battle_bg"].setBitmap(@environment_battleBG)
-      @sprites["base_0"].setBitmap(@environment_playerBase)
-      @sprites["base_1"].setBitmap(@environment_enemyBase)
+      # Only restore environment if we have saved backdrops
+      if @environment_battleBG
+        @sprites["battle_bg"].setBitmap(@environment_battleBG)
+        @sprites["base_0"].setBitmap(@environment_playerBase)
+        @sprites["base_1"].setBitmap(@environment_enemyBase)
+      end
     else
       field_id = @battle.current_field.id.to_s.downcase
       return if !field_id || field_id.empty?
       root = "Graphics/Battlebacks"
-      battle_bg_path = "#{root}/#{field_id}_bg.png"
-      return unless FileTest.exist?(battle_bg_path)
-      @sprites["battle_bg"].setBitmap(battle_bg_path)
-      @sprites["base_0"].setBitmap("#{root}/#{field_id + "_base0.png"}")
-      @sprites["base_1"].setBitmap("#{root}/#{field_id + "_base1.png"}")
+      battle_bg_path = "#{root}/#{field_id}_bg"
+      return unless pbResolveBitmap(battle_bg_path)
+      @sprites["battle_bg"].setBitmap(battle_bg_path) if @sprites["battle_bg"]
+      base0_path = "#{root}/#{field_id}_base0"
+      base1_path = "#{root}/#{field_id}_base1"
+      @sprites["base_0"].setBitmap(base0_path) if @sprites["base_0"] && pbResolveBitmap(base0_path)
+      @sprites["base_1"].setBitmap(base1_path) if @sprites["base_1"] && pbResolveBitmap(base1_path)
     end
   end
 
-=begin
+  alias field_pbCreateBackdropSprites pbCreateBackdropSprites
   def pbCreateBackdropSprites
-    case @battle.time
-    when 1 then time = "eve"
-    when 2 then time = "night"
-    end
-    # Put everything together into backdrop, bases and message bar filenames
-    backdropFilename = @battle.backdrop
-    baseFilename = @battle.backdrop
-    baseFilename = sprintf("%s_%s", baseFilename, @battle.backdropBase) if @battle.backdropBase
-    messageFilename = @battle.backdrop
-    if time
-      trialName = sprintf("%s_%s", backdropFilename, time)
-      if pbResolveBitmap(sprintf("Graphics/Battlebacks/%s_bg", trialName))
-        backdropFilename = trialName
-      end
-      trialName = sprintf("%s_%s", baseFilename, time)
-      if pbResolveBitmap(sprintf("Graphics/Battlebacks/%s_base0", trialName))
-        baseFilename = trialName
-      end
-      trialName = sprintf("%s_%s", messageFilename, time)
-      if pbResolveBitmap(sprintf("Graphics/Battlebacks/%s_message", trialName))
-        messageFilename = trialName
-      end
-    end
-    if !pbResolveBitmap(sprintf("Graphics/Battlebacks/%s_base0", baseFilename)) &&
-       @battle.backdropBase
-      baseFilename = @battle.backdropBase
-      if time
-        trialName = sprintf("%s_%s", baseFilename, time)
-        if pbResolveBitmap(sprintf("Graphics/Battlebacks/%s_base0", trialName))
-          baseFilename = trialName
-        end
-      end
-    end
-    # Finalise filenames
-    battleBG   = "Graphics/Battlebacks/" + backdropFilename + "_bg"
-    playerBase = "Graphics/Battlebacks/" + baseFilename + "_base0"
-    enemyBase  = "Graphics/Battlebacks/" + baseFilename + "_base1"
-    messageBG  = "Graphics/Battlebacks/" + "battleMessage"
-
-    # add these three lines only, it is better to add these three lines to the original method
-    @environment_battleBG   = battleBG # recommend
-    @environment_playerBase = playerBase
-    @environment_enemyBase  = enemyBase
-
-    # Apply graphics
-    bg = pbAddSprite("battle_bg", 0, 0, battleBG, @viewport)
-    bg.z = 0
-    bg = pbAddSprite("battle_bg2", -Graphics.width, 0, battleBG, @viewport)
-    bg.z      = 0
-    bg.mirror = true
-    2.times do |side|
-      baseX, baseY = Battle::Scene.pbBattlerPosition(side)
-      base = pbAddSprite("base_#{side}", baseX, baseY,
-                         (side == 0) ? playerBase : enemyBase, @viewport)
-      base.z = 1
-      if base.bitmap
-        base.ox = base.bitmap.width / 2
-        base.oy = (side == 0) ? base.bitmap.height : base.bitmap.height / 2
-      end
-    end
-    cmdBarBG = pbAddSprite("cmdBar_bg", 0, Graphics.height - 96, messageBG, @viewport)
-    cmdBarBG.z = 180
+    field_pbCreateBackdropSprites
+    # Store environment backdrops for later restoration
+    @environment_battleBG   = @sprites["battle_bg"].bitmap if @sprites["battle_bg"]
+    @environment_playerBase = @sprites["base_0"].bitmap if @sprites["base_0"]
+    @environment_enemyBase  = @sprites["base_1"].bitmap if @sprites["base_1"]
   end
-=end
 end

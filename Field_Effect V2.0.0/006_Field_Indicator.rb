@@ -82,4 +82,3 @@ class Battle::Scene::FightMenu
   end
   
 end
-

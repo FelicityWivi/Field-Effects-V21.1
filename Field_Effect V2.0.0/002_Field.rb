@@ -147,6 +147,10 @@ class Battle::Field
     self == @battle.top_field
   end
 
+  def is_base?
+    @id == :base
+  end
+
   def is_default_duration?
     @duration == DEFAULT_FIELD_DURATION
   end

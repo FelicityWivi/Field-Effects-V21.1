@@ -30,15 +30,11 @@ end
 
 # :base_type_change
 class Battle::Move
+  alias field_pbBaseType pbBaseType
   def pbBaseType(user)
-    ret = @type
-    if ret && user.abilityActive?
-      ret = Battle::AbilityEffects.triggerModifyMoveBaseType(user.ability, user, self, ret)
-    end
-
+    ret = field_pbBaseType(user)
     ret_type = @battle.apply_field_effect(:base_type_change, user, self, ret)
     ret = ret_type if ret_type
-
     return ret
   end
 end
@@ -47,26 +43,21 @@ end
 
 # :block_berry
 class Battle::Battler
+  alias field_canConsumeBerry? canConsumeBerry?
   def canConsumeBerry?
-
     ret = @battle.apply_field_effect(:block_berry, self)
     return false if ret
-
-    return false if @battle.pbCheckOpposingAbility([:UNNERVE, :ASONECHILLINGNEIGH, :ASONEGRIMNEIGH], @index)
-    return true
+    return field_canConsumeBerry?
   end
 end
 
 # :block_heal
 class Battle::Battler
+  alias field_canHeal? canHeal?
   def canHeal?
-    return false if fainted? || @hp >= @totalhp
-
     ret = @battle.apply_field_effect(:block_heal, self)
     return false if ret
-
-    return false if @effects[PBEffects::HealBlock] > 0
-    return true
+    return field_canHeal?
   end
 end
 
@@ -80,7 +71,7 @@ class Battle::Battler
     # Two-turn attacks can't fail here in the charging turn
     return true if user.effects[PBEffects::TwoTurnAttack]
 
-    priority =  @battle.choices[user.index][4] || move.priority
+    priority = @battle.choices[user.index][4] || move.priority
     ret = @battle.apply_field_effect(:block_move, move, user, target, targets, typeMod, show_message, priority)
     return false if ret
 
@@ -104,10 +95,12 @@ end
 
 # :calc_speed
 class Battle::Battler
+  alias field_pbSpeed pbSpeed
   def pbSpeed
-    return 1 if fainted?
-    stage = @stages[:SPEED] + STAT_STAGE_MAXIMUM
-    speed = @speed * STAT_STAGE_MULTIPLIERS[stage] / STAT_STAGE_DIVISORS[stage]
+    stageMul = [2, 2, 2, 2, 2, 2, 2, 3, 4, 5, 6, 7, 8]
+    stageDiv = [8, 7, 6, 5, 4, 3, 2, 2, 2, 2, 2, 2, 2]
+    stage = @stages[:SPEED] + 6
+    speed = (@pokemon.speed * stageMul[stage] / stageDiv[stage]).floor
     speedMult = 1.0
 
     ret = @battle.apply_field_effect(:calc_speed, self, speed, speedMult)
@@ -156,16 +149,17 @@ end
 
 # :expand_target
 class Battle::Move
-  def pbTarget(_user)
-    ret = @battle.apply_field_effect(:expand_target, _user, self, @target)
-    return GameData::Target.get(ret) if ret
-
-    return GameData::Target.get(@target)
+  alias field_pbTarget pbTarget
+  def pbTarget(user)
+    ret = @battle.apply_field_effect(:expand_target, user, self, @target)
+    return GameData::Target.get(ret).id if ret
+    return field_pbTarget(user)
   end
 end
 
 # :floral_heal_amount
 class Battle::Move::HealTargetDependingOnGrassyTerrain
+  alias field_pbEffectAgainstTarget pbEffectAgainstTarget
   def pbEffectAgainstTarget(user, target)
     hpGain = (target.totalhp / 2.0).round
     hpGain = (target.totalhp * 2 / 3.0).round if @battle.field.terrain == :Grassy
@@ -182,6 +176,7 @@ end
 
 # :move_priority
 class Battle::Move
+  alias field_pbPriority pbPriority
   def pbPriority(user)
     ret = @battle.apply_field_effect(:move_priority, user, self, @priority)
     pri = ret || @priority
@@ -209,6 +204,7 @@ end
 
 # :nature_power_change
 class Battle::Move::UseMoveDependingOnEnvironment
+  alias field_pbOnStartUse pbOnStartUse
   def pbOnStartUse(user, targets)
     # NOTE: It's possible in theory to not have the move Nature Power wants to
     #       turn into, but what self-respecting game wouldn't at least have Tri
@@ -221,47 +217,7 @@ class Battle::Move::UseMoveDependingOnEnvironment
       return
     end
 
-    case @battle.field.terrain
-    when :Electric
-      @npMove = :THUNDERBOLT if GameData::Move.exists?(:THUNDERBOLT)
-    when :Grassy
-      @npMove = :ENERGYBALL if GameData::Move.exists?(:ENERGYBALL)
-    when :Misty
-      @npMove = :MOONBLAST if GameData::Move.exists?(:MOONBLAST)
-    when :Psychic
-      @npMove = :PSYCHIC if GameData::Move.exists?(:PSYCHIC)
-    else
-      try_move = nil
-      case @battle.environment
-      when :Grass, :TallGrass, :Forest, :ForestGrass
-        try_move = (Settings::MECHANICS_GENERATION >= 6) ? :ENERGYBALL : :SEEDBOMB
-      when :MovingWater, :StillWater, :Underwater
-        try_move = :HYDROPUMP
-      when :Puddle
-        try_move = :MUDBOMB
-      when :Cave
-        try_move = (Settings::MECHANICS_GENERATION >= 6) ? :POWERGEM : :ROCKSLIDE
-      when :Rock, :Sand
-        try_move = (Settings::MECHANICS_GENERATION >= 6) ? :EARTHPOWER : :EARTHQUAKE
-      when :Snow
-        try_move = :BLIZZARD
-        try_move = :FROSTBREATH if Settings::MECHANICS_GENERATION == 6
-        try_move = :ICEBEAM if Settings::MECHANICS_GENERATION >= 7
-      when :Ice
-        try_move = :ICEBEAM
-      when :Volcano
-        try_move = :LAVAPLUME
-      when :Graveyard
-        try_move = :SHADOWBALL
-      when :Sky
-        try_move = :AIRSLASH
-      when :Space
-        try_move = :DRACOMETEOR
-      when :UltraSpace
-        try_move = :PSYSHOCK
-      end
-      @npMove = try_move if GameData::Move.exists?(try_move)
-    end
+    field_pbOnStartUse(user, targets)
   end
 end
 
@@ -314,6 +270,7 @@ end
 
 # :secret_power_effect
 class Battle::Move::EffectDependsOnEnvironment
+  alias field_pbOnStartUse pbOnStartUse
   def pbOnStartUse(user, targets)
     # NOTE: This is Gen 7's list plus some of Gen 6 plus a bit of my own.
     @secretPower = 0   # Body Slam, paralysis
@@ -324,43 +281,7 @@ class Battle::Move::EffectDependsOnEnvironment
       return
     end
 
-    case @battle.field.terrain
-    when :Electric
-      @secretPower = 1   # Thunder Shock, paralysis
-    when :Grassy
-      @secretPower = 2   # Vine Whip, sleep
-    when :Misty
-      @secretPower = 3   # Fairy Wind, lower Sp. Atk by 1
-    when :Psychic
-      @secretPower = 4   # Confusion, lower Speed by 1
-    else
-      case @battle.environment
-      when :Grass, :TallGrass, :Forest, :ForestGrass
-        @secretPower = 2    # (Same as Grassy Terrain)
-      when :MovingWater, :StillWater, :Underwater
-        @secretPower = 5    # Water Pulse, lower Attack by 1
-      when :Puddle
-        @secretPower = 6    # Mud Shot, lower Speed by 1
-      when :Cave
-        @secretPower = 7    # Rock Throw, flinch
-      when :Rock, :Sand
-        @secretPower = 8    # Mud-Slap, lower Acc by 1
-      when :Snow, :Ice
-        @secretPower = 9    # Ice Shard, freeze
-      when :Volcano
-        @secretPower = 10   # Incinerate, burn
-      when :Graveyard
-        @secretPower = 11   # Shadow Sneak, flinch
-      when :Sky
-        @secretPower = 12   # Gust, lower Speed by 1
-      when :Space
-        @secretPower = 13   # Swift, flinch
-      when :UltraSpace
-        @secretPower = 14   # Psywave, lower Defense by 1
-      when :Poisonlibrary
-        @secretPower = 15   # Poison damage
-      end
-    end
+    field_pbOnStartUse(user, targets)
   end
 end
 
@@ -368,7 +289,7 @@ end
 
 # :set_field_battler
 
-# :set_field_battler_universal # this is for sepcial usage, dont touch it
+# :set_field_battler_universal # this is for special usage, dont touch it
 
 # :shelter_type
 
@@ -420,72 +341,25 @@ end
 
 # :switch_in
 class Battle
-  def pbOnBattlerEnteringBattle(battler_index, skip_event_reset = false)
-    battler_index = [battler_index] if !battler_index.is_a?(Array)
-    battler_index.flatten!
-    # NOTE: This isn't done for switch commands, because they previously call
-    #       pbRecallAndReplace, which could cause Neutralizing Gas to end, which
-    #       in turn could cause Intimidate to trigger another Pokémon's Eject
-    #       Pack. That Eject Pack should trigger at the end of this method, but
-    #       this resetting would prevent that from happening, so it is skipped
-    #       and instead done earlier in def pbAttackPhaseSwitch.
-    if !skip_event_reset
-      allBattlers.each do |b|
-        b.droppedBelowHalfHP = false
-        b.statsDropped = false
-      end
-    end
-    # For each battler that entered battle, in speed order
-    pbPriority(true).each do |b|
-      next if !battler_index.include?(b.index) || b.fainted?
-      pbRecordBattlerAsParticipated(b)
-      pbMessagesOnBattlerEnteringBattle(b)
-
-      apply_field_effect(:switch_in, b)
-
-      # Position/field effects triggered by the battler appearing
-      pbEffectsOnBattlerEnteringPosition(b)   # Healing Wish/Lunar Dance
-      pbEntryHazards(b)
-      # Battler faints if it is knocked out because of an entry hazard above
-      if b.fainted?
-        b.pbFaint
-        pbGainExp
-        pbJudge
-        next
-      end
-      b.pbCheckForm
-      # Primal Revert upon entering battle
-      pbPrimalReversion(b.index)
-      # Ending primordial weather, checking Trace
-      b.pbContinualAbilityChecks(true)
-      # Abilities that trigger upon switching in
-      if (!b.fainted? && b.unstoppableAbility?) || b.abilityActive?
-        Battle::AbilityEffects.triggerOnSwitchIn(b.ability, b, self, true)
-      end
-      pbEndPrimordialWeather   # Checking this again just in case
-      # Items that trigger upon switching in (Air Balloon message)
-      if b.itemActive?
-        Battle::ItemEffects.triggerOnSwitchIn(b.item, b, self)
-      end
-      # Berry check, status-curing ability check
-      b.pbHeldItemTriggerCheck
-      b.pbAbilityStatusCureCheck
-    end
-    # Check for triggering of Emergency Exit/Wimp Out/Eject Pack (only one will
-    # be triggered)
-    pbPriority(true).each do |b|
-      break if b.pbItemOnStatDropped
-      break if b.pbAbilitiesOnDamageTaken
-    end
-    allBattlers.each do |b|
-      b.droppedBelowHalfHP = false
-      b.statsDropped = false
+  alias field_pbOnBattlerEnteringBattle pbOnBattlerEnteringBattle
+  def pbOnBattlerEnteringBattle(idxBattler)
+    # Call original method first
+    field_pbOnBattlerEnteringBattle(idxBattler)
+    
+    # Handle both single index and array of indices
+    battler_indices = idxBattler.is_a?(Array) ? idxBattler : [idxBattler]
+    
+    # Apply field switch in effects for each battler
+    battler_indices.each do |idx|
+      battler = @battlers[idx]
+      apply_field_effect(:switch_in, battler) if battler && !battler.fainted?
     end
   end
 end
 
 # :tailwind_duration
 class Battle::Move::StartUserSideDoubleSpeed
+  alias field_pbEffectGeneral pbEffectGeneral
   def pbEffectGeneral(user)
     user.pbOwnSide.effects[PBEffects::Tailwind] = 4
 
