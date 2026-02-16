@@ -110,6 +110,27 @@ class FieldTextParser
         
         # Parse which fields should be created as overlays
         parse_overlay_fields_list(data[:overlayFields]) if data[:overlayFields]
+        
+        # Parse no charging moves
+        if data[:noCharging]
+          @no_charging_moves = data[:noCharging]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded noCharging for #{@name}: #{@no_charging_moves.inspect}")
+          end
+        end
+        
+        # Parse no charging messages
+        if data[:noChargingMessages]
+          @no_charging_messages = data[:noChargingMessages]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded noChargingMessages for #{@name}: #{@no_charging_messages.inspect}")
+          end
+        end
+        
+        # Register no_charging field effect if we have no charging moves
+        if @no_charging_moves && !@no_charging_moves.empty?
+          register_no_charging_effect
+        end
       end
       
       # Helper methods for parsing
@@ -309,22 +330,9 @@ class FieldTextParser
           move_effects.each do |effect_code, moves|
             next unless moves.include?(move.id)
             begin
-              # Handle @battle method calls specially
-              if effect_code.start_with?("@battle.")
-                method_name = effect_code.sub("@battle.", "")
-                if @battle.respond_to?(method_name)
-                  @battle.send(method_name)
-                else
-                  # Fallback to eval for complex expressions
-                  eval(effect_code)
-                end
-              else
-                eval(effect_code)
-              end
+              eval(effect_code)
             rescue => e
-              if $DEBUG
-                Console.echo_li("Move effect error for #{move.id}: #{e.message}")
-              end
+              # Silent fail for eval errors
             end
           end
         }

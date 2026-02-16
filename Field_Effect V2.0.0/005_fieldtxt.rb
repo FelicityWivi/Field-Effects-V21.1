@@ -1292,13 +1292,26 @@ FIELDEFFECTS = {
 	:secretPower => "ROCKWRECKER",
 	:naturePower => :ROCKTOMB,
 	:mimicry => :ROCK,
+	:abilityMods => {
+    :PUNKROCK => { multiplier: 1.5 },
+	},
 	:damageMods => {
 		1.5 => [:ROCKTOMB],
 		0 => [:SKYDROP],
 	},
+    :noCharging => [:BOUNCE, :FLY],  # Skip charging turn - attack immediately
+    :noChargingMessages => {
+      :FLY => "The cave's low ceiling makes flying high impossible!",
+      :BOUNCE => "The cave's low ceiling prevents a high bounce!",
+    },
+    :soundBoost => {
+    multiplier: 1.5,                    # 50% boost to all sound moves
+    message: "The cave echoed the sound!"
+    },
 	:accuracyMods => {},
 	:moveMessages => {
 		"...Piled on!" => [:ROCKTOMB],
+		"The cave's low ceiling makes flying high impossible!" => [:SKYDROP],
 	},
 	:typeMods => {},
 	:typeAddOns => {},

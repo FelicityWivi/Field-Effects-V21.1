@@ -12,6 +12,8 @@ class Battle::Field
   attr_reader :seed_type, :seed_effect, :seed_duration, :seed_message, :seed_animation, :seed_stats
   attr_reader :overlay_status_mods, :overlay_type_mods
   attr_reader :overlay_fields  # List of fields that should be created as overlays instead of replacements
+  attr_reader :ability_mods    # Ability modifications for this field
+  attr_reader :failed_moves    # Moves that fail on this field
 
   DEFAULT_FIELD_DURATION  = 5
   FIELD_DURATION_EXPANDED = 3
@@ -80,6 +82,8 @@ class Battle::Field
     @overlay_status_mods       = [] # Status moves for overlay mode
     @overlay_type_mods         = {} # Type modifications for overlay mode
     @overlay_fields            = [] # Fields that should stack as overlays (not replace)
+    @ability_mods              = {} # Ability modifications for this field
+    @failed_moves              = {} # Moves that fail on this field
     
     # Load registered field data
     initialize_from_data(self.class.field_data[@id] || {})
@@ -225,6 +229,8 @@ class Battle::Field
       when :overlay_status_mods     then @overlay_status_mods     = value
       when :overlay_type_mods       then @overlay_type_mods       = value
       when :overlay_fields          then @overlay_fields          = value
+      when :ability_mods            then @ability_mods            = value
+      when :failed_moves            then @failed_moves            = value
       # Base field data
       when :trainer_name            then @trainer_name            = value
       when :environment             then @environment             = value
