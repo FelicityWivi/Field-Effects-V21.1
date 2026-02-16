@@ -19,12 +19,26 @@ def clear_default_field; $field = nil; end
 class Battle
   attr_reader :stacked_fields # all field layers
   attr_reader :current_field # the topmost field
+  attr_reader :field_counters # Field counters object (for field transitions)
 
   alias field_initialize initialize
   def initialize(scene, p1, p2, player, opponent) # recommend
     field_initialize(scene, p1, p2, player, opponent)
     @stacked_fields = []
     @suppress_field_announcements = true  # Suppress during initialization
+    
+    # Create field counters object (simple inline object)
+    @field_counters = Object.new
+    @field_counters.instance_variable_set(:@counter, 0)
+    @field_counters.instance_variable_set(:@counter2, 0)
+    @field_counters.instance_variable_set(:@counter3, 0)
+    @field_counters.instance_variable_set(:@backup, nil)
+    
+    # Define getter and setter methods
+    class << @field_counters
+      attr_accessor :counter, :counter2, :counter3, :backup
+    end
+    
     create_base_field
     @fields_initialized = false
   end
@@ -170,32 +184,30 @@ class Battle
     return unless field_id
     return if try_create_zero_duration_field?(duration)
     formatted_field_id = field_id.to_s.downcase.to_sym
+    return unless can_create_field?(formatted_field_id)
     field_class_name = "Battle::Field_#{formatted_field_id}"
-    
-    if $DEBUG
-      Console.echo_li("Attempting to create field overlay: #{field_id} -> #{formatted_field_id}")
-      Console.echo_li("Current field: #{@current_field.name}")
-    end
-    
-    unless Object.const_defined?(field_class_name)
-      Console.echo_li("Field class #{field_class_name} not found!") if $DEBUG
-      return
-    end
-    
-    # Create the overlay field
-    new_field = Object.const_get(field_class_name).new(self, duration)
-    new_field.instance_variable_set(:@is_overlay, true)
-    
-    # Add as an overlay without ending the current field
-    add_field(new_field)
-    set_current_field(new_field)
-    
-    # Show overlay announcement
-    if has_field?
-      field_announcement(:start)
-      if $DEBUG
-        Console.echo_li("Overlay #{field_name} stacked on top of #{@stacked_fields[-2].name}")
+    return if try_create_base_field?(field_class_name) && !can_create_base_field? # create Base only once
+ 
+    # already exists a field, then try to create a new field
+    if has_field? && try_create_current_field?(field_class_name) # new field is the same as the current field
+      return if is_infinite?
+      if try_create_infinite_field?(duration)
+        remove_field(remove_all: true)
+        set_field_duration(Battle::Field::INFINITE_FIELD_DURATION)
+        add_field(@current_field)
+        pbDisplay(_INTL("The field will exist forever!")) if Battle::Field::ANNOUNCE_FIELD_DURATION_INFINITE
+        #echoln("[Field set] #{field_name} was set! [#{stacked_fields_stat}]")
+      else
+        expand_duration = Battle::Field::FIELD_DURATION_EXPANDED
+        if duration > expand_duration # expand field duration
+          add_field_duration(expand_duration)
+        else
+          add_field_duration(duration)
+        end
+        pbDisplay(_INTL("The field has already existed!")) if Battle::Field::ANNOUNCE_FIELD_EXISTED
+        pbDisplay(_INTL("The field duration expanded to {1}!", field_duration)) if Battle::Field::ANNOUNCE_FIELD_DURATION_EXPAND
       end
+      return
     end
     
     apply_field_effect(:set_field_battle)
@@ -355,7 +367,7 @@ class Battle
 
   def end_field
     return unless has_field?
-    field_announcement(:end)
+    # field_announcement(:end)  # Commented out to make field transitions smoother
     apply_field_effect(:end_field_battle)
     eachBattler { |battler| apply_field_effect(:end_field_battler, battler) }
   end

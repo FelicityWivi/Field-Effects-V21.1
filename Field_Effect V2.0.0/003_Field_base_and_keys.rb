@@ -1,7 +1,6 @@
 class Battle::Field_base < Battle::Field
   def initialize(battle, duration = Battle::Field::INFINITE_FIELD_DURATION)
-    super
-    @id   = :base
+    super(battle, duration, :base)
     @name = _INTL("Base")
   end
 end

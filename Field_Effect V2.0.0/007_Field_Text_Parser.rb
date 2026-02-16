@@ -107,6 +107,9 @@ class FieldTextParser
         
         # Parse overlay effects (Rejuvenation-style overlays)
         parse_overlay_effects(data[:overlay]) if data[:overlay]
+        
+        # Parse which fields should be created as overlays
+        parse_overlay_fields_list(data[:overlayFields]) if data[:overlayFields]
       end
       
       # Helper methods for parsing
@@ -284,8 +287,14 @@ class FieldTextParser
               end
             end
             
-            # Create the new field
-            @battle.create_new_field(new_field, Battle::Field::DEFAULT_FIELD_DURATION)
+            # Check if this should be created as an overlay
+            if @overlay_fields && @overlay_fields.include?(new_field)
+              # Create as overlay (stacks on current field)
+              @battle.create_field_overlay(new_field, Battle::Field::DEFAULT_FIELD_DURATION)
+            else
+              # Create as replacement (normal field transition)
+              @battle.create_new_field(new_field, Battle::Field::DEFAULT_FIELD_DURATION)
+            end
           end
         }
       end
@@ -516,6 +525,13 @@ class FieldTextParser
         
         # These would need special handling in the move_second_type effect
         # to check if the field is currently active as an overlay
+      end
+      
+      define_method(:parse_overlay_fields_list) do |overlay_fields_list|
+        return unless overlay_fields_list
+        
+        # Store list of fields that should be created as overlays instead of replacements
+        @overlay_fields = overlay_fields_list.is_a?(Array) ? overlay_fields_list : []
       end
     end
     

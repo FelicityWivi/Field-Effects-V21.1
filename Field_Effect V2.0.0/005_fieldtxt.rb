@@ -1,39 +1,11 @@
-#===============================================================================
-# Field Effects Data (FIELDEFFECTS Hash)
-# Updated for Pokemon Essentials V21.1
-#===============================================================================
-# This file contains field effect definitions in hash format that are
-# automatically parsed into Battle::Field classes by the Field Text Parser.
-#
-# V21.1 COMPATIBILITY UPDATES:
-# - Changed PBStats::STAT to :STAT symbols (e.g., PBStats::SPEED => :SPEED)
-# - Changed isAirborne? to airborne? method calls
-# - Changed !attacker.airborne? to attacker.grounded?
-# - Changed !opponent.airborne? to opponent.grounded?
-#
-# USAGE:
-# Define fields in this hash and they will automatically be converted to
-# Battle::Field classes when the game loads. Each field can have:
-# - damageMods: Move-specific damage multipliers
-# - typeBoosts: Type-based damage multipliers
-# - accuracyMods: Accuracy modifications for specific moves
-# - typeMods: Secondary types for specific moves
-# - typeAddOns: Secondary types for entire type categories
-# - fieldChange: Moves that transform this field to another
-# - moveEffects/typeEffects/changeEffects: Custom code executed on move use
-# - seed: Seed item effects for this field
-# - overlay: Rejuvenation-style overlay effects
-#
-# See individual field definitions below for examples of each feature.
-#===============================================================================
-
 FIELDEFFECTS = {
+
 :INDOOR => {
 	:name => "",
 	:fieldMessage => [
 		""
 	],
-	:graphic => ["Indoor","IndoorA","IndoorB","IndoorC","IndoorD","IndoorE","IndoorVenam","AxisHigh","NightmareSchool"],
+	:graphic => ["Indoor"],
 	:secretPower => "TRIATTACK",
 	:naturePower => :TRIATTACK,
 	:mimicry => :NORMAL,	
@@ -124,7 +96,7 @@ FIELDEFFECTS = {
 		"The Electric Terrain strengthened the attack!" => [:ELECTRIC],
 	},
 	:typeCondition => {
-		:ELECTRIC => "attacker.grounded?",
+		:ELECTRIC => "!attacker.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -167,7 +139,7 @@ FIELDEFFECTS = {
 			"The Electric Terrain strengthened the attack!" => [:ELECTRIC],
 		},
 		:typeCondition => {
-			:ELECTRIC => "attacker.grounded?",
+			:ELECTRIC => "!attacker.isAirborne?",
 		},
 		:statusMods => [:MAGNETRISE],
 	},
@@ -196,8 +168,8 @@ FIELDEFFECTS = {
 	:typeMods => {},
 	:typeAddOns => {},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:SURF],
-		"@battle.field.counter += 2" => [:MUDDYWATER],
+		"@battle.field_counters.counter += 1" => [:SURF],
+		"@battle.field_counters.counter += 2" => [:MUDDYWATER],
 	},
 	:typeBoosts => {
 		1.5 => [:GRASS, :FIRE],
@@ -207,12 +179,12 @@ FIELDEFFECTS = {
 		"The grass below caught flame!" => [:FIRE],
 	},
 	:typeCondition => {
-		:GRASS => "attacker.grounded?",
-		:FIRE => "opponent.grounded?",
+		:GRASS => "!attacker.isAirborne?",
+		:FIRE => "!opponent.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {
-		:SWAMP => "@battle.field.counter > 2",
+		:SWAMP => "@battle.field_counters.counter > 2",
 	},
 	:fieldChange => {
 		:CORROSIVE => [:SLUDGEWAVE, :ACIDDOWNPOUR],
@@ -225,6 +197,11 @@ FIELDEFFECTS = {
 	},
 	:statusMods => [:COIL, :GROWTH, :FLORALHEALING, :SYNTHESIS, :WORRYSEED, :INGRAIN, :GRASSWHISTLE, :LEECHSEED, :COTTONSPORE],
 	:changeEffects => {},
+	:eorHeal => {
+		:fraction => 16,
+		:condition => "!battler.airborne?",
+		:message => "{1} was healed by the Grassy Terrain!"
+	},
 	:seed => {
 		:seedtype => :ELEMENTALSEED,
 		:effect => :Ingrain,
@@ -251,7 +228,7 @@ FIELDEFFECTS = {
 			"The Grassy Terrain strengthened the attack!" => [:GRASS],
 		},
 		:typeCondition => {
-			:GRASS => "attacker.grounded?",
+			:GRASS => "!attacker.isAirborne?",
 		},
 		:statusMods => [],
 	},
@@ -281,8 +258,8 @@ FIELDEFFECTS = {
 	:typeMods => {},
 	:typeAddOns => {},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:CLEARSMOG, :SMOG, :POISONGAS],
-		"@battle.field.counter = 2" => [:ACIDDOWNPOUR],
+		"@battle.field_counters.counter += 1" => [:CLEARSMOG, :SMOG, :POISONGAS],
+		"@battle.field_counters.counter = 2" => [:ACIDDOWNPOUR],
 	},
 	:typeBoosts => {
 		1.5 => [:FAIRY],
@@ -295,7 +272,7 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:CORROSIVEMIST => "@battle.field.counter > 1",
+		:CORROSIVEMIST => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:INDOOR => [:WHIRLWIND, :GUST, :RAZORWIND, :DEFOG, :HURRICANE, :TWISTER, :TAILWIND, :SUPERSONICSKYSTRIKE],
@@ -308,6 +285,11 @@ FIELDEFFECTS = {
 	},
 	:statusMods => [:COSMICPOWER, :AROMATICMIST, :SWEETSCENT, :WISH, :AQUARING],
 	:changeEffects => {},
+	:eorHeal => {
+		:fraction => 16,
+		:condition => "!battler.airborne?",
+		:message => "{1} was soothed by the Misty Terrain!"
+	},
 	:seed => {
 		:seedtype => :ELEMENTALSEED,
 		:effect => :Wish,
@@ -315,7 +297,7 @@ FIELDEFFECTS = {
 		:message => "A wish was made for {1}!",
 		:animation => :WISH,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 	:overlay => {
@@ -338,161 +320,12 @@ FIELDEFFECTS = {
 		:statusMods => [],
 	},
 },
-:DARKCRYSTALCAVERN => {
-	:name => "Dark Crystal Cavern",
-	:fieldMessage => [
-		"Darkness is gathering..."
-	],
-	:graphic => ["DarkCrystalCavern"],
-	:secretPower => "DARKPULSE",
-	:naturePower => :DARKPULSE,
-	:mimicry => :DARK,
-	:damageMods => {
-		1.5 => [:DARKPULSE, :NIGHTDAZE, :NIGHTSLASH, :SHADOWBALL, :SHADOWPUNCH, :SHADOWCLAW, :SHADOWSNEAK, :SHADOWFORCE, :SHADOWBONE, :AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT, :MIRRORBEAM, :TECHNOBLAST, :DOOMDUMMY, :POWERGEM, :MOONGEISTBEAM, :PHOTONGEYSER, :DIAMONDSTORM, :MENACINGMOONRAZEMAELSTROM, :BLACKHOLEECLIPSE],
-		2.0 => [:PRISMATICLASER],
-		0.5 => [:LIGHTTHATBURNSTHESKY],
-	},
-	:accuracyMods => {
-		100 => [:DARKVOID],
-	},
-	:moveMessages => {
-		"The darkness began to gather...!" => [:DARKPULSE, :NIGHTDAZE, :NIGHTSLASH],
-		"The darkness strengthened the attack!" => [:SHADOWBALL, :SHADOWPUNCH, :SHADOWCLAW, :SHADOWSNEAK, :SHADOWFORCE, :SHADOWBONE, :MENACINGMOONRAZEMAELSTROM],
-		"The crystals' light strengthened the attack!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT, :MIRRORBEAM, :TECHNOBLAST, :DOOMDUMMY, :POWERGEM, :MOONGEISTBEAM, :PHOTONGEYSER, :DIAMONDSTORM],
-		"The crystal split the attack!" => [:PRISMATICLASER],
-		"The consuming darkness fed the attack!" => [:BLACKHOLEECLIPSE],
-		"{1} couldn't consume much light..." => [:LIGHTTHATBURNSTHESKY],
-	},
-	:typeMods => {},
-	:typeAddOns => {},
-	:moveEffects => {},
-	:typeBoosts => {},
-	:typeMessages => {},
-	:typeCondition => {},
-	:typeEffects => {},
-	:changeCondition => {
-		:CRYSTALCAVERN => "suncheck",
-		:CAVE => "@battle.field.counter > 1",
-	},
-	:fieldChange => {
-		:CAVE => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
-		:CRYSTALCAVERN => [:SUNNYDAY],
-	},
-	:dontChangeBackup => [:SUNNYDAY],
-	:changeMessage => {
-		 "The dark crystals were shattered!" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
-		 "The sun lit up the crystal cavern!" => [:SUNNYDAY],
-	},
-	:statusMods => [:FLASH, :DARKVOID, :MOONLIGHT, :AURORAVEIL],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :MAGICALSEED,
-		:effect => :MagicCoat,
-		:duration => true,
-		:message => "{1} shrouded itself with Magic Coat!",
-		:animation => :MAGICCOAT,
-		:stats => {
-			:SPDEF => 1,
-		},
-	},
-},
-:CHESS => {
-	:name => "Chess Board",
-	:fieldMessage => [
-		"Opening variation set."
-	],
-	:graphic => ["Chess","Chess1"],
-	:secretPower => "FEINT",
-	:naturePower => :ANCIENTPOWER,
-	:mimicry => :PSYCHIC,
-	:damageMods => {
-		1.5 => [:FEINT, :FEINTATTACK, :FAKEOUT, :SUCKERPUNCH, :FIRSTIMPRESSION, :SHADOWSNEAK, :SMARTSTRIKE, :STRENGTH, :ANCIENTPOWER, :PSYCHIC, :CONTINENTALCRUSH, :SECRETPOWER, :SHATTEREDPSYCHE],
-		2.0 => [:BARRAGE],
-	},
-	:accuracyMods => {},
-	:moveMessages => {
-		"En passant!" => [:FEINT, :FEINTATTACK, :FAKEOUT, :SUCKERPUNCH, :FIRSTIMPRESSION, :SHADOWSNEAK, :SMARTSTRIKE],
-	},
-	:typeMods => {
-		:ROCK => [:STRENGTH, :ANCIENTPOWER, :PSYCHIC, :BARRAGE, :SECRETPOWER, :SHATTEREDPSYCHE],
-	},
-	:typeAddOns => {},
-	:moveEffects => {},
-	:typeBoosts => {},
-	:typeMessages => {},
-	:typeCondition => {},
-	:typeEffects => {},
-	:changeCondition => {},
-	:fieldChange => {},
-	:dontChangeBackup => [],
-	:changeMessage => {},
-	:statusMods => [:CALMMIND, :NASTYPLOT, :TRICKROOM, :NORETREAT, :KINGSSHIELD, :OBSTRUCT],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :MagicCoat,
-		:duration => true,
-		:message => "{1} shrouded itself with Magic Coat!",
-		:animation => :MAGICCOAT,
-		:stats => {
-			:SPATK => 1,
-		},
-	},
-},
-:BIGTOP => {
-	:name => "Big Top Arena",
-	:fieldMessage => [
-		"Now presenting...!"
-	],
-	:graphic => ["BigTop"],
-	:secretPower => "DYNAMICPUNCH",
-	:naturePower => :ACROBATICS,
-	:mimicry => :FIGHTING,
-	:damageMods => {
-		1.5 => [:VINEWHIP, :POWERWHIP, :FIRELASH, :FIERYDANCE, :PETALDANCE, :REVELATIONDANCE, :FLY, :ACROBATICS, :FIRSTIMPRESSION, :DRUMBEATING],
-		2.0 => [:PAYDAY],
-	},
-	:accuracyMods => {
-		100 => [:SING],
-	},
-	:moveMessages => {
-		"Back, foul beast!" => [:VINEWHIP, :POWERWHIP, :FIRELASH],
-		"What grace!" => [:FIERYDANCE, :PETALDANCE, :REVELATIONDANCE],
-		"An extravagant aerial finish!" => [:FLY, :ACROBATICS],
-		"And what an entrance it is!" => [:FIRSTIMPRESSION],
-		"And a little extra for you, darling!" => [:PAYDAY],
-		"Loud and clear!" => [:DRUMBEATING],
-	},
-	:typeMods => {},
-	:typeAddOns => {},
-	:moveEffects => {},
-	:typeBoosts => {},
-	:typeMessages => {},
-	:typeCondition => {},
-	:typeEffects => {},
-	:changeCondition => {},
-	:fieldChange => {},
-	:dontChangeBackup => [],
-	:changeMessage => {},
-	:statusMods => [:ENCORE, :DRAGONDANCE, :QUIVERDANCE, :SWORDSDANCE, :FEATHERDANCE, :SING, :RAINDANCE, :BELLYDRUM, :SPOTLIGHT, :AQUABATICS, :CLANGOROUSSOUL],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :HelpingHand,
-		:duration => true,
-		:message => "{1} accepts the crowd's help!",
-		:animation => :HELPINGHAND,
-		:stats => {
-			:ATTACK => 1,
-		},
-	},
-},
 :VOLCANIC => {
 	:name => "Volcanic Field",
 	:fieldMessage => [
 		"The field is molten!"
 	],
-	:graphic => ["Volcano"],
+	:graphic => ["Volcanic"],
 	:secretPower => "FLAMETHROWER",
 	:naturePower => :FLAMETHROWER,
 	:mimicry => :FIRE,
@@ -523,8 +356,8 @@ FIELDEFFECTS = {
 		"The blaze softened the attack..." => [:GRASS, :ICE],
 	},
 	:typeCondition => {
-		:FIRE => "attacker.grounded?",
-		:GRASS => "opponent.grounded?",
+		:FIRE => "!attacker.isAirborne?",
+		:GRASS => "!opponent.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -548,7 +381,7 @@ FIELDEFFECTS = {
 		:animation => :FIRESPIN,
 		:stats => {
 			:ATTACK => 1,
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 			:SPEED => 1,
 		},
 	},
@@ -660,7 +493,7 @@ FIELDEFFECTS = {
 		:message => "A wish was made for {1}!",
 		:animation => :WISH,
 		:stats => {
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 	:overlay => {
@@ -784,7 +617,7 @@ FIELDEFFECTS = {
 		:animation => nil,
 		:stats => {
 			:ATTACK => 1,
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
@@ -817,8 +650,8 @@ FIELDEFFECTS = {
 		"The desert softened the attack..." => [:WATER, :ELECTRIC],
 	},
 	:typeCondition => {
-		:WATER => "attacker.grounded? && self.move!=:SCALD && self.move!=:STEAMERUPTION",
-		:ELECTRIC => "opponent.grounded?",
+		:WATER => "!attacker.isAirborne? && self.move!=:SCALD && self.move!=:STEAMERUPTION",
+		:ELECTRIC => "!opponent.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -835,7 +668,7 @@ FIELDEFFECTS = {
 		:animation => :SANDTOMB,
 		:stats => {
 			:DEFENSE => 1,
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 			:SPEED => 1,
 		},
 	},
@@ -864,8 +697,8 @@ FIELDEFFECTS = {
 	},
 	:moveEffects => {
 		"@battle.iceSpikes" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
-		"@battle.field.counter += 1" => [:SCALD],
-		"@battle.field.counter = 2" => [:STEAMERUPTION],
+		"@battle.field_counters.counter += 1" => [:SCALD],
+		"@battle.field_counters.counter = 2" => [:STEAMERUPTION],
 	},
 	:typeBoosts => {
 		1.5 => [:ICE],
@@ -878,8 +711,8 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:INDOOR => "[:WATERSURFACE,:MURKWATERSURFACE].include?(@battle.field.backup) && (self.move!=:DIVE || @battle.field.counter == 3)",
-		:WATERSURFACE => "@battle.field.counter > 1",
+		:INDOOR => "[:WATERSURFACE,:MURKWATERSURFACE].include?(@battle.field.backup) && (self.move!=:DIVE || @battle.field_counters.counter == 3)",
+		:WATERSURFACE => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:INDOOR => [:DIVE, :EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
@@ -951,7 +784,7 @@ FIELDEFFECTS = {
 		:animation => nil,
 		:stats => {
 			:DEFENSE => 1,
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -960,7 +793,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The field is abound with trees."
 	],
-	:graphic => ["Forest","GoldForest","ForestCave"],
+	:graphic => ["Forest"],
 	:secretPower => "WOODHAMMER",
 	:naturePower => :WOODHAMMER,
 	:mimicry => :BUG,
@@ -982,8 +815,8 @@ FIELDEFFECTS = {
 	},
 	:typeAddOns => {},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:SURF],
-		"@battle.field.counter += 2" => [:MUDDYWATER],
+		"@battle.field_counters.counter += 1" => [:SURF],
+		"@battle.field_counters.counter += 2" => [:MUDDYWATER],
 	},
 	:typeBoosts => {
 		1.5 => [:BUG, :GRASS],
@@ -997,7 +830,7 @@ FIELDEFFECTS = {
 	},
 	:typeEffects => {},
 	:changeCondition => {
-		:SWAMP => "@battle.field.counter > 2",
+		:SWAMP => "@battle.field_counters.counter > 2",
 	},
 	:fieldChange => {
 		:SWAMP => [:SURF, :MUDDYWATER],
@@ -1023,7 +856,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The mountain top is super-heated!"
 	],
-	:graphic => ["Voltop"],
+	:graphic => ["Volcanictop"],
 	:secretPower => "FLAMEBURST",
 	:naturePower => :ERUPTION,
 	:mimicry => :FIRE,
@@ -1140,7 +973,7 @@ FIELDEFFECTS = {
 		:message => "{1} is focused!",
 		:animation => :LASERFOCUS,
 		:stats => {
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
@@ -1197,7 +1030,7 @@ FIELDEFFECTS = {
 		:message => "{1} levitated with electromagnetism!",
 		:animation => :MAGNETRISE,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -1247,16 +1080,16 @@ FIELDEFFECTS = {
 		:animation => nil,
 		:stats => {
 			:ATTACK => 1,
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
-:ASHENBEACH => {
+:BEACH => {
 	:name => "Beach",
 	:fieldMessage => [
 		"Focus and relax to the sound of crashing waves..."
 	],
-	:graphic => ["AshenBeach","Beach","BeachEve","BeachNight"],
+	:graphic => ["Beach","BeachEve","BeachNight"],
 	:secretPower => "MUDSHOT",
 	:naturePower => :MEDITATE,
 	:mimicry => :GROUND,
@@ -1333,8 +1166,8 @@ FIELDEFFECTS = {
 	:typeMods => {},
 	:typeAddOns => {},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:SLUDGEWAVE],
-		"@battle.field.counter = 2" => [:ACIDDOWNPOUR],
+		"@battle.field_counters.counter += 1" => [:SLUDGEWAVE],
+		"@battle.field_counters.counter = 2" => [:ACIDDOWNPOUR],
 	},
 	:typeBoosts => {
 		1.5 => [:WATER, :ELECTRIC],
@@ -1348,12 +1181,12 @@ FIELDEFFECTS = {
 		"...But there was no solid ground to attack from!" => [:GROUND],
 	},
 	:typeCondition => {
-		:FIRE => "opponent.grounded?",
-		:ELECTRIC => "opponent.grounded?",
+		:FIRE => "!opponent.isAirborne?",
+		:ELECTRIC => "!opponent.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {
-		:MURKWATERSURFACE => "@battle.field.counter > 1",
+		:MURKWATERSURFACE => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:UNDERWATER => [:GRAVITY, :DIVE, :ANCHORSHOT, :GRAVAPPLE],
@@ -1376,7 +1209,7 @@ FIELDEFFECTS = {
 		:message => "{1} surrounded itself with a veil of water!",
 		:animation => :AQUARING,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -1408,8 +1241,8 @@ FIELDEFFECTS = {
 		:WATER => [:GROUND],
 	},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:SLUDGEWAVE],
-		"@battle.field.counter = 2" => [:ACIDDOWNPOUR],
+		"@battle.field_counters.counter += 1" => [:SLUDGEWAVE],
+		"@battle.field_counters.counter = 2" => [:ACIDDOWNPOUR],
 	},
 	:typeBoosts => {
 		1.5 => [:WATER],
@@ -1424,7 +1257,7 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:MURKWATERSURFACE => "@battle.field.counter > 1",
+		:MURKWATERSURFACE => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:WATERSURFACE => [:DIVE, :SKYDROP, :FLY, :BOUNCE],
@@ -1471,10 +1304,10 @@ FIELDEFFECTS = {
 	:typeAddOns => {},
 	:moveEffects => {
 		"@battle.caveCollapse" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE, :CONTINENTALCRUSH],
-		"@battle.field.counter2 += 1" => [:DRAGONPULSE],
-		"@battle.field.counter2 = 2" => [:DRACOMETEOR, :DEVASTATINGDRAKE],
-		"@battle.field.counter3 += 1" => [:FEVERPITCH, :MAGMADRIFT, :ERUPTION, :LAVAPLUME, :HEATWAVE, :OVERHEAT, :FUSIONFLARE],
-		"@battle.field.counter4 += 1" => [:GRAVITY],
+		"@battle.field_counters.counter2 += 1" => [:DRAGONPULSE],
+		"@battle.field_counters.counter2 = 2" => [:DRACOMETEOR, :DEVASTATINGDRAKE],
+		"@battle.field_counters.counter3 += 1" => [:FEVERPITCH, :MAGMADRIFT, :ERUPTION, :LAVAPLUME, :HEATWAVE, :OVERHEAT, :FUSIONFLARE],
+		"@battle.field_counters.counter4 += 1" => [:GRAVITY],
 	},
 	:typeBoosts => {
 		1.5 => [:ROCK],
@@ -1489,9 +1322,9 @@ FIELDEFFECTS = {
 	},
 	:typeEffects => {},
 	:changeCondition => {
-		:DRAGONSDEN => "@battle.field.counter2 > 1",
-		:VOLCANIC => "@battle.field.counter3 > 1",
-		:DEEPEARTH => "@battle.field.counter4 > 1",
+		:DRAGONSDEN => "@battle.field_counters.counter2 > 1",
+		:VOLCANIC => "@battle.field_counters.counter3 > 1",
+		:DEEPEARTH => "@battle.field_counters.counter4 > 1",
 	},
 	:fieldChange => {
 		:CRYSTALCAVERN => [:POWERGEM, :DIAMONDSTORM],
@@ -1574,7 +1407,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The cave is littered with crystals."
 	],
-	:graphic => ["CrystalCavern","AmethystCave","CaveAqua"],
+	:graphic => ["CrystalCavern"],
 	:secretPower => "POWERGEM",
 	:naturePower => :POWERGEM,
 	:mimicry => :DRAGON,
@@ -1590,8 +1423,8 @@ FIELDEFFECTS = {
 	:typeMods => {},
 	:typeAddOns => {},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE],
-		"@battle.field.counter = 2" => [:TECTONICRAGE],
+		"@battle.field_counters.counter += 1" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE],
+		"@battle.field_counters.counter = 2" => [:TECTONICRAGE],
 	},
 	:typeBoosts => {
 		1.5 => [:ROCK, :DRAGON],
@@ -1603,7 +1436,7 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:CAVE => "@battle.field.counter > 1",
+		:CAVE => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:CAVE => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
@@ -1624,7 +1457,7 @@ FIELDEFFECTS = {
 		:message => "{1} shrouded itself with Magic Coat!",
 		:animation => :MAGICCOAT,
 		:stats => {
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
@@ -1666,7 +1499,7 @@ FIELDEFFECTS = {
 		"...But there was no solid ground to attack from!" => [:GROUND],
 	},
 	:typeCondition => {
-		:ELECTRIC => "opponent.grounded?",
+		:ELECTRIC => "!opponent.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -1814,7 +1647,7 @@ FIELDEFFECTS = {
 		:message => "",
 		:animation => nil,
 		:stats => {
-			:SPATK => 2,
+			:SPECIAL_ATTACK => 2,
 			:ACCURACY => -1,
 		},
 	},
@@ -1876,58 +1709,7 @@ FIELDEFFECTS = {
 		:message => "{1} shrouded itself with Magic Coat!",
 		:animation => :MAGICCOAT,
 		:stats => {
-			:SPATK => 1,
-		},
-	},
-},
-:MIRROR => {
-	:name => "Mirror Arena",
-	:fieldMessage => [
-		"Mirror, mirror, on the field,",
-		"Who shall this fractured power wield?",
-	],
-	:graphic => ["Mirror"],
-	:secretPower => "MIRRORSHOT",
-	:naturePower => :MIRRORSHOT,
-	:mimicry => :STEEL,
-	:damageMods => {
-		1.5 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :TECHNOBLAST, :DOOMDUMMY, :PRISMATICLASER, :PHOTONGEYSER, :LIGHTTHATBURNSTHESKY],
-		2.0 => [:MIRRORSHOT],
-	},
-	:accuracyMods => {
-		0 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :TECHNOBLAST, :DOOMDUMMY, :PRISMATICLASER, :PHOTONGEYSER, :LIGHTTHATBURNSTHESKY, :MIRRORSHOT],
-	},
-	:moveMessages => {
-		"The reflected light was blinding!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :TECHNOBLAST, :DOOMDUMMY, :PRISMATICLASER, :PHOTONGEYSER, :LIGHTTHATBURNSTHESKY],
-		"The mirrors strengthened the attack!" => [:MIRRORSHOT],
-	},
-	:typeMods => {},
-	:typeAddOns => {},
-	:moveEffects => {},
-	:typeBoosts => {},
-	:typeMessages => {},
-	:typeCondition => {},
-	:typeEffects => {},
-	:changeCondition => {},
-	:fieldChange => {
-		:INDOOR => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE, :BOOMBURST, :HYPERVOICE, :SELFDESTRUCT, :EXPLOSION],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		"The mirror arena shattered!" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE, :BOOMBURST, :HYPERVOICE, :SELFDESTRUCT, :EXPLOSION],
-	},
-	:statusMods => [:LIGHTSCREEN, :AURORAVEIL, :REFLECT, :MIRRORMOVE, :MIRRORCOAT, :DOUBLETEAM, :FLASH],
-	:changeEffects => {
-		"@battle.mirrorShatter" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE, :BOOMBURST, :HYPERVOICE, :SELFDESTRUCT, :EXPLOSION],
-	},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :MagicCoat,
-		:duration => true,
-		:message => "{1} shrouded itself with Magic Coat!",
-		:animation => :MAGICCOAT,
-		:stats => {
-			:EVASION => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
@@ -2028,7 +1810,7 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:CAVE => "@battle.field.counter > 1",
+		:CAVE => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:CAVE => [:GLACIATE, :SUBZEROSLAMMER, :OCEANICOPERETTA, :HYDROVORTEX],
@@ -2049,7 +1831,7 @@ FIELDEFFECTS = {
 		:message => "{1} raised its Fire power!",
 		:animation => nil,
 		:stats => {
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
@@ -2091,7 +1873,7 @@ FIELDEFFECTS = {
 		:message => "{1} planted its roots!",
 		:animation => :INGRAIN,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -2142,7 +1924,7 @@ FIELDEFFECTS = {
 		:message => "{1} planted its roots!",
 		:animation => :INGRAIN,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -2204,7 +1986,7 @@ FIELDEFFECTS = {
 		:message => "{1} planted its roots!",
 		:animation => :INGRAIN,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -2266,7 +2048,7 @@ FIELDEFFECTS = {
 		:message => "{1} planted its roots!",
 		:animation => :INGRAIN,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -2326,139 +2108,7 @@ FIELDEFFECTS = {
 		:message => "{1} planted its roots!",
 		:animation => :INGRAIN,
 		:stats => {
-			:SPDEF => 1,
-		},
-	},
-},
-:STARLIGHT => {
-	:name => "Starlight Arena",
-	:fieldMessage => [
-		"Starlight fills the battlefield."
-	],
-	:graphic => ["Starlight","Starlight1"],
-	:secretPower => "SWIFT",
-	:naturePower => :MOONBLAST,
-	:mimicry => :DARK,
-	:damageMods => {
-		1.5 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT, :MIRRORBEAM, :TECHNOBLAST, :SOLARBEAM, :PHOTONGEYSER, :MOONBLAST, :PRISMATICLASER, :NIGHTSLASH, :NIGHTDAZE],
-		2.0 => [:DRACOMETEOR, :METEORMASH, :COMETPUNCH, :SPACIALREND, :SWIFT, :HYPERSPACEHOLE, :HYPERSPACEFURY, :MOONGEISTBEAM, :SUNSTEELSTRIKE, :METEORASSAULT, :BLACKHOLEECLIPSE, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM, :LIGHTTHATBURNSTHESKY],
-		4.0 => [:DOOMDUMMY],
-	},
-	:accuracyMods => {},
-	:moveMessages => {
-		"Starlight surged through the attack!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT, :MIRRORBEAM, :TECHNOBLAST, :SOLARBEAM, :PHOTONGEYSER, :PRISMATICLASER, :LIGHTTHATBURNSTHESKY],
-		"Lunar energy surged through the attack!" => [:MOONBLAST, :NIGHTSLASH, :NIGHTDAZE],
-		"The astral energy boosted the attack!" => [:DRACOMETEOR, :METEORMASH, :COMETPUNCH, :SPACIALREND, :SWIFT, :HYPERSPACEFURY, :MOONGEISTBEAM, :SUNSTEELSTRIKE, :METEORASSAULT, :BLACKHOLEECLIPSE, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM],
-		"The astral vortex accelerated the attack!" => [:HYPERSPACEHOLE],
-		"A star came crashing down!" => [:DOOMDUMMY],
-	},
-	:typeMods => {
-		:FIRE => [:DOOMDUMMY],
-		:FAIRY => [:SOLARBEAM, :SOLARBLADE],
-	},
-	:typeAddOns => {
-		:FAIRY => [:DARK],
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-		1.5 => [:DARK, :PSYCHIC],
-		1.3 => [:FAIRY],
-	},
-	:typeMessages => {
-		"Starlight supercharged the attack!" => [:FAIRY],
-		"The night sky boosted the attack!" => [:DARK],
-		"The astral energy boosted the attack!" => [:PSYCHIC],
-	},
-	:typeCondition => {},
-	:typeEffects => {},
-	:changeCondition => {},
-	:fieldChange => {
-		:INDOOR => [:LIGHTTHATBURNSTHESKY],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		 "The cosmic light was consumed!" => [:LIGHTTHATBURNSTHESKY],
-	},
-	:statusMods => [:AURORAVEIL, :COSMICPOWER, :FLASH, :WISH, :HEALINGWISH, :LUNARDANCE, :MOONLIGHT, :TRICKROOM, :MAGICROOM, :WONDERROOM, :LUNARBLESSING],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :MAGICALSEED,
-		:effect => :Wish,
-		:duration => 2,
-		:message => "A wish was made for {1}!",
-		:animation => :WISH,
-		:stats => {
-			:SPATK => 1,
-		},
-	},
-},
-:NEWWORLD => {
-	:name => "New World",
-	:fieldMessage => [
-		"From darkness, from stardust,",
-		"From memories of eons past and visions yet to come...",
-	],
-	:graphic => ["NewWorld"],
-	:secretPower => "ROAROFTIME",
-	:naturePower => :SPACIALREND,
-	:mimicry => :DARK,
-	:damageMods => {
-		1.5 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :DAZZLINGGLEAM, :MIRRORSHOT, :MIRRORBEAM, :PHOTONGEYSER, :PSYSTRIKE, :AEROBLAST, :SACREDFIRE, :MISTBALL, :LUSTERPURGE, :ORIGINPULSE, :PRECIPICEBLADES, :DRAGONASCENT, :PSYCHOBOOST, :ROAROFTIME, :MAGMASTORM, :CRUSHGRIP, :JUDGMENT, :SEEDFLARE, :SHADOWFORCE, :SEARINGSHOT, :VCREATE, :SECRETSWORD, :SACREDSWORD, :RELICSONG, :FUSIONBOLT, :FUSIONFLARE, :ICEBURN, :FREEZESHOCK, :BOLTSTRIKE, :BLUEFLARE, :TECHNOBLAST, :OBLIVIONWING, :LANDSWRATH, :THOUSANDARROWS, :THOUSANDWAVES, :DIAMONDSTORM, :STEAMERUPTION, :COREENFORCER, :FLEURCANNON, :PRISMATICLASER, :SUNSTEELSTRIKE, :SPECTRALTHIEF, :MOONGEISTBEAM, :MULTIATTACK, :MINDBLOWN, :PLASMAFISTS, :EARTHPOWER, :POWERGEM, :ERUPTION, :CONTINENTALCRUSH, :GENESISSUPERNOVA, :SOULSTEALING7STARSTRIKE, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM],
-		2.0 => [:VACUUMWAVE, :DRACOMETEOR, :METEORMASH, :MOONBLAST, :COMETPUNCH, :SWIFT, :HYPERSPACEHOLE, :SPACIALREND, :HYPERSPACEFURY, :ANCIENTPOWER, :FUTUREDUMMY, :BLACKHOLEECLIPSE, :LIGHTTHATBURNSTHESKY],
-		4.0 => [:DOOMDUMMY],
-		0.25 => [:EARTHQUAKE, :MAGNITUDE, :BULLDOZE],
-		0 => [:HAIL, :SUNNYDAY, :SANDSTORM, :RAINDANCE, :SHADOWSKY, :GRASSYTERRAIN, :PSYCHICTERRAIN, :MISTYTERRAIN, :ELECTRICTERRAIN, :MIST, :FISSURE],
-	},
-	:accuracyMods => {
-		100 => [:DARKVOID],
-	},
-	:moveMessages => {
-		"The light shone through the infinite darkness!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :DAZZLINGGLEAM, :MIRRORSHOT, :MIRRORBEAM, :PHOTONGEYSER, :LIGHTTHATBURNSTHESKY],
-		"The ethereal energy strengthened the attack!" => [:PSYSTRIKE, :AEROBLAST, :SACREDFIRE, :MISTBALL, :LUSTERPURGE, :ORIGINPULSE, :PRECIPICEBLADES, :DRAGONASCENT, :PSYCHOBOOST, :ROAROFTIME, :MAGMASTORM, :CRUSHGRIP, :JUDGMENT, :SEEDFLARE, :SHADOWFORCE, :SEARINGSHOT, :VCREATE, :SECRETSWORD, :SACREDSWORD, :RELICSONG, :FUSIONBOLT, :FUSIONFLARE, :GLACIATE, :ICEBURN, :FREEZESHOCK, :BOLTSTRIKE, :BLUEFLARE, :TECHNOBLAST, :OBLIVIONWING, :LANDSWRATH, :THOUSANDARROWS, :THOUSANDWAVES, :DIAMONDSTORM, :STEAMERUPTION, :COREENFORCER, :FLEURCANNON, :PRISMATICLASER, :SUNSTEELSTRIKE, :SPECTRALTHIEF, :MOONGEISTBEAM, :MULTIATTACK, :MINDBLOWN, :PLASMAFISTS, :GENESISSUPERNOVA, :SOULSTEALING7STARSTRIKE, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM],
-		"The germinal matter amassed in the attack!" => [:EARTHPOWER, :POWERGEM, :ERUPTION, :CONTINENTALCRUSH],
-		"The astral energy boosted the attack!" => [:VACUUMWAVE, :DRACOMETEOR, :METEORMASH, :MOONBLAST, :COMETPUNCH, :SWIFT, :HYPERSPACEHOLE, :SPACIALREND, :HYPERSPACEFURY, :ANCIENTPOWER, :FUTUREDUMMY],
-		"A star came crashing down on {1}!" => [:DOOMDUMMY],
-		"{1} was swallowed up by the void!" => [:BLACKHOLEECLIPSE],
-		"The unformed land diffused the attack..." => [:EARTHQUAKE, :MAGNITUDE, :BULLDOZE, :FISSURE],
-		"The terrain had no solid ground to attach..." => [:GRASSYTERRAIN, :PSYCHICTERRAIN, :MISTYTERRAIN, :ELECTRICTERRAIN, :MIST],
-		"The weather drifted off into space..." => [:HAIL, :SUNNYDAY, :SANDSTORM, :RAINDANCE, :SHADOWSKY]
-	},
-	:typeMods => {
-		:FIRE => [:DOOMDUMMY],
-	},
-	:typeAddOns => {},
-	:moveEffects => {},
-	:typeBoosts => {
-		1.5 => [:DARK],
-	},
-	:typeMessages => {
-		"Infinity boosted the attack!" => [:DARK],
-	},
-	:typeCondition => {},
-	:typeEffects => {},
-	:changeCondition => {},
-	:fieldChange => {
-		:STARLIGHT => [:GRAVITY, :GEOMANCY],
-	},
-	:dontChangeBackup => [:GRAVITY],
-	:changeMessage => {
-		 "The world's matter reformed!" => [:GRAVITY],
-		 "The world was regenerated!" => [:GEOMANCY],
-	},
-	:statusMods => [:DARKVOID, :HEARTSWAP, :TRICKROOM, :MAGICROOM, :WONDERROOM, :COSMICPOWER, :FLASH, :MOONLIGHT, :NATURESMADNESS, :LUNARBLESSING],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :MAGICALSEED,
-		:effect => :HyperBeam,
-		:duration => 1,
-		:message => "{1} must recharge!",
-		:animation => nil,
-		:stats => {
-			:ATTACK => 1,
-			:DEFENSE => 1,
-			:SPEED => 1,
-			:SPATK => 1,
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -2528,7 +2178,7 @@ FIELDEFFECTS = {
 		"The Psychic Terrain strengthened the attack!" => [:PSYCHIC],
 	},
 	:typeCondition => {
-		:PSYCHIC => "attacker.grounded?",
+		:PSYCHIC => "!attacker.isAirborne?",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -2546,7 +2196,7 @@ FIELDEFFECTS = {
 		:message => "{1} became confused!",
 		:animation => nil,
 		:stats => {
-			:SPATK => 2,
+			:SPECIAL_ATTACK => 2,
 		},
 	},
 	:overlay => {
@@ -2565,7 +2215,7 @@ FIELDEFFECTS = {
 			"The Psychic Terrain strengthened the attack!" => [:PSYCHIC],
 		},
 		:typeCondition => {	
-			:PSYCHIC => "attacker.grounded?",
+			:PSYCHIC => "!attacker.isAirborne?",
 		},
 		:statusMods => [],
 	},
@@ -2575,7 +2225,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"Darkness Radiates."
 	],
-	:graphic => ["Dimensional","Dimensional1","AelitaRift","DimensionalGard"],
+	:graphic => ["Dimensional"],
 	:secretPower => "DARKPULSE",
 	:naturePower => :DARKPULSE,
 	:mimicry => :DARK,
@@ -2601,8 +2251,8 @@ FIELDEFFECTS = {
 	:typeAddOns => {
 	},
 	:moveEffects => {
-		"@battle.field.counter += 1" => [:BLIZZARD, :SHEERCOLD, :COLDTRUTH],
-		"@battle.field.counter = 2" => [:ICEBURN, :FREEZESHOCK, :GLACIATE],
+		"@battle.field_counters.counter += 1" => [:BLIZZARD, :SHEERCOLD, :COLDTRUTH],
+		"@battle.field_counters.counter = 2" => [:ICEBURN, :FREEZESHOCK, :GLACIATE],
 	},
 	:typeBoosts => {
 		1.5 => [:DARK, :SHADOW],
@@ -2619,7 +2269,7 @@ FIELDEFFECTS = {
 	},
 	:typeEffects => {},
 	:changeCondition => {
-		:FROZENDIMENSION => "@battle.field.counter > 1",
+		:FROZENDIMENSION => "@battle.field_counters.counter > 1",
 	},
 	:fieldChange => {
 		:FROZENDIMENSION => [:BLIZZARD, :SHEERCOLD, :ICEBURN, :FREEZESHOCK, :GLACIATE, :COLDTRUTH],
@@ -2645,76 +2295,12 @@ FIELDEFFECTS = {
 		},
 	},
 },
-:FROZENDIMENSION => {
-	:name => "Frozen Dimensional Field",
-	:fieldMessage => [
-		"Hate and anger radiates."
-	],
-	:graphic => ["Angie"],
-	:secretPower => "ICEBEAM",
-	:naturePower => :ICEBEAM,
-	:mimicry => :ICE,
-	:damageMods => {
-		1.5 => [:RAGINGFURY,:THRASH,:OUTRAGE,:STOMPINGTANTRUM,:RAGE,:LASHOUT,:FREEZINGGLARE,:FIERYWRATH,:ROAROFTIME],
-		1.2 => [:SURF, :MUDDYWATER, :WATERPULSE, :HYDROPUMP, :NIGHTSLASH, :DARKPULSE, :HYPERSPACEFURY, :HYPERSPACEHOLE],
-		0 => [:MAGICROOM, :WONDERROOM, :TRICKROOM, :GRAVITY, :COURTCHANGE, :TEATIME, :ELECTRICTERRAIN, :GRASSYTERRAIN, :PSYCHICTERRAIN, :MISTYTERRAIN],
-	},
-	:accuracyMods => {
-		100 => [:DARKVOID],
-	},
-	:moveMessages => {
-		"The rage continues." => [:RAGINGFURY,:THRASH,:OUTRAGE,:STOMPINGTANTRUM,:RAGE,:LASHOUT,:FREEZINGGLARE,:FIERYWRATH,:ROAROFTIME],
-		"The ice warped the attack." => [:SURF, :MUDDYWATER, :WATERPULSE, :HYDROPUMP, :NIGHTSLASH, :DARKPULSE, :HYPERSPACEFURY, :HYPERSPACEHOLE],
-		"The frozen dimension remains unchanged." => [:MAGICROOM, :WONDERROOM, :TRICKROOM, :GRAVITY, :COURTCHANGE, :ELECTRICTERRAIN, :GRASSYTERRAIN, :PSYCHICTERRAIN, :MISTYTERRAIN],
-		"But it failed." => [:TEATIME],
-	},
-	:typeMods => {
-		:ICE => [:SURF, :MUDDYWATER, :WATERPULSE, :HYDROPUMP, :NIGHTSLASH, :DARKPULSE],
-	},
-	:typeAddOns => {
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-		1.2 => [:ICE],
-		1.5 => [:DARK],
-	},
-	:typeMessages => {
-		"The darkness is here..." => [:DARK],
-		"The dimension mutated the ice!" => [:ICE],
-	},
-	:typeCondition => {
-	},
-	:typeEffects => {},
-	:changeCondition => {
-	},
-	:fieldChange => {
-		:DIMENSIONAL => [:HEATWAVE, :ERUPTION, :SEARINGSHOT, :FLAMEBURST, :LAVAPLUME, :FIREPLEDGE, :MINDBLOWN, :INCINERATE, :INFERNOOVERDRIVE, :RAGINGFURY],
-		:ICY => [:PURIFY],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		 "The dimension thawed away!" => [:HEATWAVE, :ERUPTION, :SEARINGSHOT, :FLAMEBURST, :LAVAPLUME, :FIREPLEDGE, :MINDBLOWN, :INCINERATE, :INFERNOOVERDRIVE, :RAGINGFURY],
-		 "The dimension was purified!" => [:PURIFY],
-	},
-	:statusMods => [:PARTINGSHOT, :AURORAVEIL, :DARKVOID],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :ELEMENTALSEED,
-		:effect => :Torment,
-		:duration => true,
-		:message => "{1} is subjected to torment!",
-		:animation => :TORMENT,
-		:stats => {
-			:SPEED => 2,
-		},
-	},
-},
 :HAUNTED => {
 	:name => "Haunted Field",
 	:fieldMessage => [
 		"The field is haunted!"
 	],
-	:graphic => ["Haunted","Haunted2","Haunted3"],
+	:graphic => ["Haunted"],
 	:secretPower => "SHADOWCLAW",
 	:naturePower => :PHANTOMFORCE,
 	:mimicry => :GHOST,
@@ -2765,7 +2351,7 @@ FIELDEFFECTS = {
 		:message => "",
 		:animation => nil,
 		:stats => {
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 			:DEFENSE => 1,
 		},
 	},
@@ -2834,66 +2420,6 @@ FIELDEFFECTS = {
 		},
 	},
 },
-:BEWITCHED => {
-	:name => "Bewitched Woods",
-	:fieldMessage => [
-		"Everlasting glow and glamour!"
-	],
-	:graphic => ["Darchlight"],
-	:secretPower => "NEEDLEARM",
-	:naturePower => :DAZZLINGGLEAM,
-	:mimicry => :FAIRY,
-	:damageMods => {
-		1.5 => [:HEX, :MYSTICALFIRE, :SPIRITBREAK],
-		1.4 => [:ICEBEAM, :HYPERBEAM, :SIGNALBEAM, :AURORABEAM, :CHARGEBEAM, :PSYBEAM, :FLASHCANNON, :MIRRORBEAM, :MAGICALLEAF, :BUBBLEBEAM],
-		1.2 => [:DARKPULSE, :NIGHTDAZE, :MOONBLAST],
-	},
-	:accuracyMods => {
-		85 => [:SLEEPPOWDER, :POISONPOWDER, :STUNSPORE, :GRASSWHISTLE],
-	},
-	:moveMessages => {
-		"Magic aura amplified the attack!" => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :ICEBEAM, :HYPERBEAM, :SIGNALBEAM, :AURORABEAM, :CHARGEBEAM, :PSYBEAM, :FLASHCANNON, :MIRRORBEAM, :MAGICALLEAF, :BUBBLEBEAM],
-		"The forest is cursed with nightfall!" => [:DARKPULSE, :NIGHTDAZE, :MOONBLAST],
-	},
-	:typeMods => {
-	},
-	:typeAddOns => {
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-		1.5 => [:FAIRY, :GRASS],
-		1.3 => [:DARK],
-	},
-	:typeMessages => {
-		"The fairy aura amplified the attack's power!" => [:FAIRY],
-		"Flourish!" => [:GRASS],
-		"The dark aura amplified the attack's power!" => [:DARK],
-	},
-	:typeCondition => {
-	},
-	:typeEffects => {},
-	:changeCondition => {
-	},
-	:fieldChange => {
-		:FOREST => [:PURIFY],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		 "The evil spirits have been exorcised!" => [:PURIFY],
-	},
-	:statusMods => [:STRENGTHSAP, :FORESTSCURSE, :MAGICPOWDER, :MOONLIGHT, :SLEEPPOWDER, :POISONPOWDER, :STUNSPORE, :GRASSWHISTLE],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :MAGICALSEED,
-		:effect => :Ingrain,
-		:duration => true,
-		:message => "{1} planted its roots.",
-		:animation => :INGRAIN,
-		:stats => {
-			:SPDEF => 1,
-		},
-	},
-},
 :SKY => {
 	:name => "Sky Field",
 	:fieldMessage => [
@@ -2949,7 +2475,7 @@ FIELDEFFECTS = {
 		:animation => nil,
 		:stats => {
 			:DEFENSE => 1,
-			:SPDEF => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -3074,278 +2600,7 @@ FIELDEFFECTS = {
 		:animation => :MEANLOOK,
 		:stats => {
 			:ATTACK => 1,
-			:SPATK => 1,
-		},
-	},
-},
-:CONCERT1 => {
-	:name => "Concert Venue",
-	:fieldMessage => [
-		"Let's get HYPED!"
-	],
-	:graphic => ["Concert1"],
-	:secretPower => "BOOMBURST",
-	:naturePower => :HYPERVOICE,
-	:mimicry => :NORMAL,
-	:damageMods => {
-		1.5 => [:ACID,:ACIDSPRAY,:DRUMBEATING,:FAKEOUT,:ROLLOUT,:FIRSTIMPRESSION,:DRAGONTAIL,:CIRCLETHROW,:RAGE,:THRASH,:FRUSTRATION,:OUTRAGE,:STOMPINGTANTRUM],
-	},
-	:accuracyMods => {
-		100 => [:SING],
-	},
-	:moveMessages => {
-		"Face melting!" => [:ACID,:ACIDSPRAY,:APPLEACID],
-		"Rock and roll!" => [:ROLLOUT],
-		"An amazing drumsolo!" => [:DRUMBEATING],
-		"What an opening act!" => [:FIRSTIMPRESSION,:FAKEOUT],
-		"MOSHPIT!!!" => [:DRAGONTAIL,:CIRCLETHROW],
-		"The outraged audience is rioting!" => [:RAGE,:THRASH,:FRUSTRATION,:OUTRAGE,:STOMPINGTANTRUM],
-	},
-	:typeMods => {
-	},
-	:typeAddOns => {
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-	},
-	:typeMessages => {
-	},
-	:typeCondition => {
-	},
-	:typeEffects => {},
-	:changeCondition => {
-	},
-	:fieldChange => {
-		:CONCERT2 => [:WORKUP,:ROLLOUT,:FIRSTIMPRESSION,:DRUMBEATING,:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE,:SWAGGER,:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM],
-		:CONCERT3 => [:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME],
-		:CONCERT4 => [:SELFDESTRUCT,:EXPLOSION],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		"The stunning dance makes the audience go wild!" => [:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE],
-		"The song is getting the audience hyped!" => [:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM],
-		"The crowd is getting hyped!" => [:DRUMBEATING,:FIRSTIMPRESSION,:WORKUP,:ROLLOUT,:SWAGGER],
-		"The audience's full attention is on the stage!" => [:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME],
-		"The audience cheers for the explosive finish!!" => [:SELFDESTRUCT,:EXPLOSION],
-	},
-	:statusMods => [:ACIDARMOR,:WORKUP,:HOWL,:PARTINGSHOT,:METALSOUND,:SCREECH,:GROWL,:CLANGOROUSSOUL,:SING,:ROAR,:ENCORE],
-	:changeEffects => {
-		"@battle.concertNoise" => [:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME,:SELFDESTRUCT,:EXPLOSION]
-	},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :HelpingHand,
-		:duration => true,
-		:message => "{1} accepts the crowd's help!",
-		:animation => :HELPINGHAND,
-		:stats => {
-			:SPATK => 1,
-		},
-	},
-},
-:CONCERT2 => {
-	:name => "Concert Venue",
-	:fieldMessage => [
-		"Let's get HYPED!"
-	],
-	:graphic => ["Concert2"],
-	:secretPower => "BOOMBURST",
-	:naturePower => :HYPERVOICE,
-	:mimicry => :NORMAL,
-	:damageMods => {
-		1.5 => [:ACID,:ACIDSPRAY,:DRUMBEATING,:FAKEOUT,:ROLLOUT,:FIRSTIMPRESSION,:DRAGONTAIL,:CIRCLETHROW,:RAGE,:THRASH,:FRUSTRATION,:OUTRAGE,:STOMPINGTANTRUM],
-	},
-	:accuracyMods => {
-		100 => [:SING],
-	},
-	:moveMessages => {
-		"Face melting!" => [:ACID,:ACIDSPRAY,:APPLEACID],
-		"Rock and roll!" => [:ROLLOUT],
-		"An amazing drumsolo!" => [:DRUMBEATING],
-		"What an opening act!" => [:FIRSTIMPRESSION,:FAKEOUT],
-		"MOSHPIT!!!" => [:DRAGONTAIL,:CIRCLETHROW],
-		"The outraged Audience is rioting!" => [:RAGE,:THRASH,:FRUSTRATION,:OUTRAGE,:STOMPINGTANTRUM],
-	},
-	:typeMods => {
-	},
-	:typeAddOns => {
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-	},
-	:typeMessages => {
-	},
-	:typeCondition => {
-	},
-	:typeEffects => {},
-	:changeCondition => {
-		:CONCERT1 => "!attacker.missAcc || (basemove.move != :SHEERCOLD && basemove.move != :COLDTRUTH)",
-	},
-	:fieldChange => {
-		:CONCERT1 => [:THROATCHOP,:SHEERCOLD,:COLDTRUTH,:EMBARGO,:QUASH,:SLACKOFF,:YAWN,:PLAYNICE,:BABYDOLLEYES,:TICKLE],
-		:CONCERT3 => [:WORKUP,:ROLLOUT,:FIRSTIMPRESSION,:DRUMBEATING,:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE,:SWAGGER,:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM],
-		:CONCERT4 => [:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME,:SELFDESTRUCT,:EXPLOSION],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		"The freezing cold drives the audience away..." => [:SHEERCOLD],
-		"'Bitter cold AND preaching? I am out of here!'" => [:COLDTRUTH],
-		"The leadsingers voice fails..." => [:THROATCHOP],
-		"The bar is closed and the crowd does NOT like it..." => [:EMBARGO],
-		"The crowd is booing, they want action!" => [:QUASH,:SLACKOFF,:YAWN],
-		"The audience is not a fan of this friendly touchy-feely stuff..." => [:PLAYNICE,:BABYDOLLEYES,:TICKLE],
-		"The stunning dance makes the audience go wild!" => [:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE],
-		"The song is getting the audience hyped!" => [:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM],
-		"The crowd is getting hyped!" => [:DRUMBEATING,:FIRSTIMPRESSION,:WORKUP,:ROLLOUT,:SWAGGER],
-		"The audience's full attention is on the stage!" => [:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME],
-		"The audience cheers for the explosive finish!!" => [:SELFDESTRUCT,:EXPLOSION],
-	},
-	:statusMods => [:ACIDARMOR,:WORKUP,:HOWL,:PARTINGSHOT,:METALSOUND,:SCREECH,:GROWL,:CLANGOROUSSOUL,:SING,:ROAR,:ENCORE],
-	:changeEffects => {
-		"@battle.concertNoise" => [:WORKUP,:ROLLOUT,:FIRSTIMPRESSION,:DRUMBEATING,:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE,:SWAGGER,:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME,:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM,:SELFDESTRUCT,:EXPLOSION]
-	},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :HelpingHand,
-		:duration => true,
-		:message => "{1} accepts the crowd's help!",
-		:animation => :HELPINGHAND,
-		:stats => {
-			:SPATK => 1,
-		},
-	},
-},
-:CONCERT3 => {
-	:name => "Concert Venue",
-	:fieldMessage => [
-		"Let's get HYPED!"
-	],
-	:graphic => ["Concert3"],
-	:secretPower => "BOOMBURST",
-	:naturePower => :HYPERVOICE,
-	:mimicry => :NORMAL,
-	:damageMods => {
-		1.5 => [:ACID,:ACIDSPRAY,:DRUMBEATING,:FAKEOUT,:ROLLOUT,:FIRSTIMPRESSION,:DRAGONTAIL,:CIRCLETHROW],
-	},
-	:accuracyMods => {
-		100 => [:SING],
-	},
-	:moveMessages => {
-		"Face melting!" => [:ACID,:ACIDSPRAY,:APPLEACID],
-		"Rock and roll!" => [:ROLLOUT],
-		"An amazing drumsolo!" => [:DRUMBEATING],
-		"What an opening act!" => [:FIRSTIMPRESSION,:FAKEOUT],
-		"MOSHPIT!!!" => [:DRAGONTAIL,:CIRCLETHROW],
-	},
-	:typeMods => {
-	},
-	:typeAddOns => {
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-	},
-	:typeMessages => {
-	},
-	:typeCondition => {
-	},
-	:typeEffects => {},
-	:changeCondition => {
-		:CONCERT1 => "!attacker.missAcc",
-	},
-	:fieldChange => {
-		:CONCERT1 => [:SHEERCOLD,:COLDTRUTH],
-		:CONCERT2 => [:THROATCHOP,:EMBARGO,:QUASH,:SLACKOFF,:YAWN,:PLAYNICE,:BABYDOLLEYES,:TICKLE],
-		:CONCERT4 => [:WORKUP,:ROLLOUT,:FIRSTIMPRESSION,:DRUMBEATING,:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE,:SWAGGER,:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME,:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM,:SELFDESTRUCT,:EXPLOSION],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		"The freezing cold drives the audience away..." => [:SHEERCOLD],
-		"'Bitter cold AND preaching? I am out of here!'" => [:COLDTRUTH],
-		"The leadsingers voice fails..." => [:THROATCHOP],
-		"The bar is closed and the crowd does NOT like it..." => [:EMBARGO],
-		"The crowd is booing, they want action!" => [:QUASH,:SLACKOFF,:YAWN],
-		"The audience is not a fan of this friendly touchy-feely stuff..." => [:PLAYNICE,:BABYDOLLEYES,:TICKLE],
-		"The stunning dance makes the audience go wild!" => [:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE],
-		"The song is getting the audience hyped!" => [:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM],
-		"The crowd is getting hyped!" => [:DRUMBEATING,:FIRSTIMPRESSION,:WORKUP,:ROLLOUT,:SWAGGER],
-		"The audience's full attention is on the stage!" => [:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME],
-		"The audience cheers for the explosive finish!!" => [:SELFDESTRUCT,:EXPLOSION],
-	},
-	:statusMods => [:ACIDARMOR,:WORKUP,:HOWL,:PARTINGSHOT,:METALSOUND,:SCREECH,:GROWL,:CLANGOROUSSOUL,:SING,:ROAR,:ENCORE],
-	:changeEffects => {
-		"@battle.concertNoise" => [:WORKUP,:ROLLOUT,:FIRSTIMPRESSION,:DRUMBEATING,:REVELATIONDANCE,:FIERYDANCE,:PETALDANCE,:DRAGONDANCE,:QUIVERDANCE,:AQUABATICS,:SWORDSDANCE,:FEATHERDANCE,:SWAGGER,:LASERFOCUS,:LUCKYCHANT,:FOCUSENERGY,:SPOTLIGHT,:FOLLOWME,:BOOMBURST,:BUGBUZZ,:CHATTER,:CLANGINGSCALES,:CLANGOROUSSOUL,:CLANGOROUSSOULBLAZE,:DISARMINGVOICE,:ECHOEDVOICE,:GROWL,:HOWL,:HYPERVOICE,:METALSOUND,:NOBLEROAR,:OVERDRIVE,:PARTINGSHOT,:RELICSONG,:ROAR,:ROUND,:SCREECH,:SHADOWPANIC,:SING,:SNARL,:SPARKLINGARIA,:SUPERSONIC,:UPROAR,:FEVERPITCH,:SPECTRALSCREAM,:SELFDESTRUCT,:EXPLOSION]
-	},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :HelpingHand,
-		:duration => true,
-		:message => "{1} accepts the crowd's help!",
-		:animation => :HELPINGHAND,
-		:stats => {
-			:SPATK => 1,
-		},
-	},
-},
-:CONCERT4 => {
-	:name => "Concert Venue",
-	:fieldMessage => [
-		"Let's get HYPED!"
-	],
-	:graphic => ["Concert4"],
-	:secretPower => "BOOMBURST",
-	:naturePower => :HYPERVOICE,
-	:mimicry => :NORMAL,
-	:damageMods => {
-		1.5 => [:ACID,:ACIDSPRAY,:DRUMBEATING,:FAKEOUT,:ROLLOUT,:FIRSTIMPRESSION,:DRAGONTAIL,:CIRCLETHROW],
-	},
-	:accuracyMods => {
-		100 => [:SING],
-	},
-	:moveMessages => {
-		"Face melting!" => [:ACID,:ACIDSPRAY,:APPLEACID],
-		"Rock and roll!" => [:ROLLOUT],
-		"An amazing drumsolo!" => [:DRUMBEATING],
-		"What an opening act!" => [:FIRSTIMPRESSION,:FAKEOUT],
-		"MOSHPIT!!!" => [:DRAGONTAIL,:CIRCLETHROW],
-	},
-	:typeMods => {
-	},
-	:typeAddOns => {
-	},
-	:moveEffects => {},
-	:typeBoosts => {
-	},
-	:typeMessages => {
-	},
-	:typeCondition => {
-	},
-	:typeEffects => {},
-	:changeCondition => {
-		:CONCERT1 => "!attacker.missAcc",
-	},
-	:fieldChange => {
-		:CONCERT1 => [:SHEERCOLD,:COLDTRUTH],
-		:CONCERT3 => [:THROATCHOP,:EMBARGO,:QUASH,:SLACKOFF,:YAWN,:PLAYNICE,:BABYDOLLEYES,:TICKLE],
-	},
-	:dontChangeBackup => [],
-	:changeMessage => {
-		"The freezing cold drives the audience away..." => [:SHEERCOLD],
-		"'Bitter cold AND preaching? I am out of here!'" => [:COLDTRUTH],
-		"The leadsingers voice fails..." => [:THROATCHOP],
-		"The bar is closed and the crowd does NOT like it..." => [:EMBARGO],
-		"The crowd is booing, they want action!" => [:QUASH,:SLACKOFF,:YAWN],
-		"The audience is not a fan of this friendly touchy-feely stuff..." => [:PLAYNICE,:BABYDOLLEYES,:TICKLE],
-	},
-	:statusMods => [:ACIDARMOR,:WORKUP,:HOWL,:PARTINGSHOT,:METALSOUND,:SCREECH,:GROWL,:CLANGOROUSSOUL,:SING,:ROAR,:ENCORE],
-	:changeEffects => {},
-	:seed => {
-		:seedtype => :SYNTHETICSEED,
-		:effect => :HelpingHand,
-		:duration => true,
-		:message => "{1} accepts the crowd's help!",
-		:animation => :HELPINGHAND,
-		:stats => {
-			:SPATK => 1,
+			:SPECIAL_ATTACK => 1,
 		},
 	},
 },
@@ -3487,7 +2742,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The streets are busy..."
 	],
-	:graphic => ["GDCCentralSquare","City","GearenNew","GDCDreamDistrict","GDCDistrictOfHope","GDCJudicialDistrict","GDCScholarDistrict"],
+	:graphic => ["City"],
 	:secretPower => "SMOG",
 	:naturePower => :SMOG,
 	:mimicry => :NORMAL,
@@ -3548,4 +2803,165 @@ FIELDEFFECTS = {
 		},
 	},
 },
+:ENCHANTEDFOREST => {
+	:name => "Enchanted Forest",
+	:fieldMessage => [
+		"Once upon a time!"
+	],
+	:graphic => ["EnchantedForest"],
+	:secretPower => "DAZZLINGGLEAM",
+	:naturePower => :DAZZLINGGLEAM,
+	:mimicry => :FAIRY,
+	:damageMods => {
+		1.5 => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALTORQUE, :FLEURCANNON, :RELICSONG,
+		        :AIRSLASH, :AQUACUTTER, :BEHEMOTHBLADE, :CEASELESSEDGE, :LEAFBLADE, :NIGHTSLASH, 
+		        :PSYCHOCUT, :RAZORSHELL, :SMARTSTRIKE, :SOLARBLADE, :STONEAXE, :TACHYONCUTTER, 
+		        :BITTERBLADE, :PSYBLADE],
+		1.4 => [:AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :HYPERBEAM, :ICEBEAM, :MIRRORBEAM, 
+		        :PSYBEAM, :SIGNALBEAM, :TWINBEAM],
+		1.2 => [:DARKPULSE, :MOONBLAST, :NIGHTDAZE, :BLOODMOON],
+	},
+	:accuracyMods => {
+		85 => [:GRASSWHISTLE, :POISONPOWDER, :SLEEPPOWDER, :STUNSPORE],
+	},
+	:moveMessages => {
+		"Magic aura amplified the attack!" => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALTORQUE, :FLEURCANNON, :RELICSONG],
+		"The Knight is Justified!" => [:AIRSLASH, :AQUACUTTER, :BEHEMOTHBLADE, :CEASELESSEDGE, :LEAFBLADE, :NIGHTSLASH, 
+		                                :PSYCHOCUT, :RAZORSHELL, :SMARTSTRIKE, :SOLARBLADE, :STONEAXE, :TACHYONCUTTER, 
+		                                :BITTERBLADE, :PSYBLADE],
+		"Magic aura amplified the beams!" => [:AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :HYPERBEAM, :ICEBEAM, :MIRRORBEAM, 
+		                                      :PSYBEAM, :SIGNALBEAM, :TWINBEAM],
+		"It was a curse!" => [:DARKPULSE, :MOONBLAST, :NIGHTDAZE, :BLOODMOON],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.5 => [:FAIRY, :GRASS, :POISON],
+		1.3 => [:DARK],
+		1.2 => [:STEEL],
+	},
+	:typeMessages => {
+		"The enchanted aura boosted the attack!" => [:FAIRY, :STEEL],
+		"Flourish!" => [:GRASS],
+		"Poison seeps from the darkness!" => [:POISON],
+		"Not all fairy tales..." => [:DARK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:FORESTSCURSE, :MAGICPOWDER, :MOONLIGHT, :STRENGTHSAP],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:SPECIAL_DEFENSE => 1,
+		},
+	},
+	},
+:SAHARA => {
+	:name => "Sahara",
+	:fieldMessage => [
+		"The air is dry and humid."
+	],
+	:graphic => ["Sahara"],
+	:secretPower => "NEEDLEARM",
+	:naturePower => :NEEDLEARM,
+	:mimicry => :GROUND,
+	:damageMods => {
+		1.5 => [:NEEDLEARM, :OVERHEAT, :PINMISSILE, :ROCKWRECKER, :SANDTOMB, :SCORCHINGSANDS, :ATTACKORDER, :BUGBUZZ],
+		0.8 => [:WATER],
+	},
+	:accuracyMods => {},
+	:moveMessages => {
+		"The dry earth boosted the attack!" => [:NEEDLEARM, :OVERHEAT, :PINMISSILE, :ROCKWRECKER, :SANDTOMB, :SCORCHINGSANDS],
+		"They're coming out of the woodwork!" => [:ATTACKORDER, :BUGBUZZ],
+		"The water evaporated!" => [:WATER],
+	},
+	:typeMods => {
+		:WATER => [:ICE],
+	},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.3 => [:BUG, :FIRE, :GROUND, :ROCK],
+	},
+	:typeMessages => {
+		"The humid air boosted the attack!" => [:BUG, :FIRE, :GROUND, :ROCK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:SANDATTACK, :DEFENDORDER, :SILVERWIND],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :TELLURICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:DEFENSE => 1,
+		},
+	},
+	},
+:POISONLIBRARY => {
+	:name => "Poison Library",
+	:fieldMessage => [
+		"The library is seeping knowledge."
+	],
+	:graphic => ["PoisonLibrary"],
+	:secretPower => "ACID",
+	:naturePower => :ACID,
+	:mimicry => :POISON,
+	:damageMods => {},
+	:accuracyMods => {},
+	:moveMessages => {},
+	:typeMods => {},
+	:typeAddOns => {
+		:POISON => [:GRASS],
+		:FAIRY => [:PSYCHIC],
+	},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.4 => [:POISON],
+		1.2 => [:GRASS, :FIRE, :FAIRY],
+	},
+	:typeMessages => {
+		"The Poison permeates through the field!" => [:POISON],
+		"The library is overgrown!" => [:GRASS],
+		"Alexandria!" => [:FIRE],
+		"The power of knowledge!" => [:FAIRY],
+	},
+	:typeCondition => {
+		:POISON => "!attacker.isAirborne?",
+	},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :SYNTHETICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:SPECIAL_ATTACK => 1,
+		},
+	},
+}
 }

@@ -11,6 +11,7 @@ class Battle::Field
   attr_reader :status_mods, :dont_change_backup
   attr_reader :seed_type, :seed_effect, :seed_duration, :seed_message, :seed_animation, :seed_stats
   attr_reader :overlay_status_mods, :overlay_type_mods
+  attr_reader :overlay_fields  # List of fields that should be created as overlays instead of replacements
 
   DEFAULT_FIELD_DURATION  = 5
   FIELD_DURATION_EXPANDED = 3
@@ -50,9 +51,12 @@ class Battle::Field
     @@field_data
   end
 
-  def initialize(battle, duration)
+  def initialize(battle, duration, field_id = :base)
     @battle                    = battle
     @duration                  = duration
+    @id                        = field_id
+    
+    # Initialize defaults before loading data
     @effects                   = {}
     @field_announcement        = {}
     @multipliers               = {}
@@ -75,6 +79,10 @@ class Battle::Field
     @seed_stats                = {} # Stat changes from seed
     @overlay_status_mods       = [] # Status moves for overlay mode
     @overlay_type_mods         = {} # Type modifications for overlay mode
+    @overlay_fields            = [] # Fields that should stack as overlays (not replace)
+    
+    # Load registered field data
+    initialize_from_data(self.class.field_data[@id] || {})
 
     @effects[:calc_damage] = proc { |user, target, numTargets, move, type, power, mults|
       # Safety check - ensure multipliers is initialized and not nil
@@ -181,6 +189,49 @@ class Battle::Field
         end
       end
     }
+  end
+
+  def initialize_from_data(data)
+    data.each do |key, value|
+      case key
+      when :name                    then @name                    = value
+      when :duration                then @duration                = value unless @duration
+      when :multipliers             then @multipliers             = value
+      when :strengthened_message    then @strengthened_message    = value
+      when :weakened_message        then @weakened_message        = value
+      when :nature_power_change     then @nature_power_change     = value
+      when :mimicry_type            then @mimicry_type            = value
+      when :camouflage_type         then @camouflage_type         = value
+      when :secret_power_effect     then @secret_power_effect     = value
+      when :terrain_pulse_type      then @terrain_pulse_type      = value
+      when :tailwind_duration       then @tailwind_duration       = value
+      when :floral_heal_amount      then @floral_heal_amount      = value
+      when :shelter_type            then @shelter_type            = value
+      when :ability_activation      then @ability_activation      = value
+      when :creatable_field         then @creatable_field         = value
+      when :always_online           then @always_online           = value
+      when :eor_heal_fraction       then @eor_heal_fraction       = value
+      when :eor_heal_condition      then @eor_heal_condition      = value
+      when :eor_heal_message        then @eor_heal_message        = value
+      when :is_overlay              then @is_overlay              = value
+      when :status_mods             then @status_mods             = value
+      when :dont_change_backup      then @dont_change_backup      = value
+      when :seed_type               then @seed_type               = value
+      when :seed_effect             then @seed_effect             = value
+      when :seed_duration           then @seed_duration           = value
+      when :seed_message            then @seed_message            = value
+      when :seed_animation          then @seed_animation          = value
+      when :seed_stats              then @seed_stats              = value
+      when :overlay_status_mods     then @overlay_status_mods     = value
+      when :overlay_type_mods       then @overlay_type_mods       = value
+      when :overlay_fields          then @overlay_fields          = value
+      # Base field data
+      when :trainer_name            then @trainer_name            = value
+      when :environment             then @environment             = value
+      when :map_id                  then @map_id                  = value
+      when :edge_type               then @edge_type               = value
+      end
+    end
   end
 
   def self.method_missing(method_name, *args, &block)
