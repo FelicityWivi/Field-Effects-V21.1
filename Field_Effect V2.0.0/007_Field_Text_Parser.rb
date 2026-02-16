@@ -309,9 +309,22 @@ class FieldTextParser
           move_effects.each do |effect_code, moves|
             next unless moves.include?(move.id)
             begin
-              eval(effect_code)
+              # Handle @battle method calls specially
+              if effect_code.start_with?("@battle.")
+                method_name = effect_code.sub("@battle.", "")
+                if @battle.respond_to?(method_name)
+                  @battle.send(method_name)
+                else
+                  # Fallback to eval for complex expressions
+                  eval(effect_code)
+                end
+              else
+                eval(effect_code)
+              end
             rescue => e
-              # Silent fail for eval errors
+              if $DEBUG
+                Console.echo_li("Move effect error for #{move.id}: #{e.message}")
+              end
             end
           end
         }
