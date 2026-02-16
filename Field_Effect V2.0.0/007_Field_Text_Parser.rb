@@ -127,9 +127,56 @@ class FieldTextParser
           end
         end
         
+        # Parse status damage modifiers
+        if data[:statusDamageMods]
+          @status_damage_mods = data[:statusDamageMods]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded statusDamageMods for #{@name}: #{@status_damage_mods.inspect}")
+          end
+        end
+        
+        # Parse move stat boosts
+        if data[:moveStatBoosts]
+          @move_stat_boosts = data[:moveStatBoosts]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded moveStatBoosts for #{@name}: #{@move_stat_boosts.inspect}")
+          end
+        end
+        
+        # Parse blocked statuses
+        if data[:blockedStatuses]
+          @blocked_statuses = data[:blockedStatuses]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded blockedStatuses for #{@name}: #{@blocked_statuses.inspect}")
+          end
+        end
+        
+        # Parse blocked weather
+        if data[:blockedWeather]
+          @blocked_weather = data[:blockedWeather]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded blockedWeather for #{@name}: #{@blocked_weather.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect
+        end
+        
+        # Register move stat boosts field effect
+        if @move_stat_boosts && !@move_stat_boosts.empty?
+          register_move_stat_boosts
+        end
+        
+        # Register blocked status cure effect
+        if @blocked_statuses && !@blocked_statuses.empty?
+          register_blocked_status_cure
+        end
+        
+        # Register blocked weather effect
+        if @blocked_weather && !@blocked_weather.empty?
+          register_blocked_weather
         end
       end
       

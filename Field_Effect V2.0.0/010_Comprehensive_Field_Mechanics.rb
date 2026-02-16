@@ -11,6 +11,10 @@ class Battle::Field
   attr_reader :failed_moves           # Moves that fail on this field
   attr_reader :no_charging_moves      # Moves that skip charging turn on this field
   attr_reader :no_charging_messages   # Custom messages for no charging moves
+  attr_reader :status_damage_mods     # Status damage multipliers for this field
+  attr_reader :move_stat_boosts       # Stat boosts from using certain moves
+  attr_reader :blocked_statuses       # Status conditions that cannot be inflicted
+  attr_reader :blocked_weather        # Weather conditions that cannot be set
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -19,6 +23,10 @@ class Battle::Field
     @failed_moves ||= {}
     @no_charging_moves ||= []
     @no_charging_messages ||= {}
+    @status_damage_mods ||= {}
+    @move_stat_boosts ||= []
+    @blocked_statuses ||= []
+    @blocked_weather ||= []
   end
   
   # Called after initialization to register the no_charging effect
@@ -138,16 +146,16 @@ class Battle::Move::TwoTurnMove
   alias field_pbEffectGeneral pbEffectGeneral
   
   def pbEffectGeneral(user)
-    # Check if field allows instant execution BEFORE calling original
+    # Check if field allows instant execution
     field_skips = false
     if @battle.has_field? && @battle.current_field.no_charging_moves
       field_skips = @battle.current_field.no_charging_moves.include?(@id)
       if $DEBUG && field_skips
-        Console.echo_li("[NO CHARGE DEBUG] pbEffectGeneral - preventing TwoTurnAttack effect")
+        Console.echo_li("[NO CHARGE DEBUG] pbEffectGeneral - field skip detected")
       end
     end
     
-    # Call original
+    # Call original (this triggers charging animation and "flew up high" message)
     ret = field_pbEffectGeneral(user)
     
     # Clear the TwoTurnAttack effect if field skips charging
@@ -160,59 +168,51 @@ class Battle::Move::TwoTurnMove
     
     return ret
   end
+  
+  # Show custom message at the very start of damage calculation
+  alias field_pbCalcDamage pbCalcDamage
+  
+  def pbCalcDamage(user, target, *args)
+    # Check if field allows instant execution and we haven't shown the message yet
+    if @battle.has_field? && @battle.current_field.no_charging_moves
+      if @battle.current_field.no_charging_moves.include?(@id)
+        if !@field_message_shown
+          custom_msg = get_no_charging_message
+          if custom_msg
+            if $DEBUG
+              Console.echo_li("[NO CHARGE MSG] Displaying custom message before damage calc: #{custom_msg}")
+            end
+            @battle.pbDisplay(custom_msg)
+            @field_message_shown = true
+          end
+        end
+      end
+    end
+    
+    # Call original to calculate damage with all arguments
+    field_pbCalcDamage(user, target, *args)
+  end
 end
 
-# Show custom field message after charging message
+# Show custom message right after "uses" message
 class Battle::Move::TwoTurnMove
+  alias field_pbDisplayUseMessage pbDisplayUseMessage
+  
+  def pbDisplayUseMessage(user)
+    # Call original to show "[Pokemon] used [Move]!"
+    field_pbDisplayUseMessage(user)
+    
+    # Don't show custom message here - let it show after charging animation
+  end
+  
+  # Suppress the charging message when field skips charging
+  # NOTE: This doesn't seem to work because the message comes from the animation system
+  # Instead we just show our custom message after it
   alias field_pbChargingTurnMessage pbChargingTurnMessage
   
   def pbChargingTurnMessage(user, targets)
-    if $DEBUG
-      Console.echo_li("[NO CHARGE MSG] ===== pbChargingTurnMessage START =====")
-      Console.echo_li("[NO CHARGE MSG] @chargingTurn = #{@chargingTurn}")
-      Console.echo_li("[NO CHARGE MSG] @damagingTurn = #{@damagingTurn}")
-      Console.echo_li("[NO CHARGE MSG] @powerHerb = #{@powerHerb}")
-      Console.echo_li("[NO CHARGE MSG] Check: damagingTurn && chargingTurn && !powerHerb")
-      Console.echo_li("[NO CHARGE MSG]   = #{@damagingTurn} && #{@chargingTurn} && #{!@powerHerb}")
-      Console.echo_li("[NO CHARGE MSG]   = #{@damagingTurn && @chargingTurn && !@powerHerb}")
-    end
-    
-    # If field allows instant execution, show custom message INSTEAD of charging message
-    if @damagingTurn && @chargingTurn && !@powerHerb
-      if $DEBUG
-        Console.echo_li("[NO CHARGE MSG] ✓ Field skip detected - using custom message")
-      end
-      custom_msg = get_no_charging_message
-      if custom_msg
-        if $DEBUG
-          Console.echo_li("[NO CHARGE MSG] ✓ Custom message found: #{custom_msg}")
-          Console.echo_li("[NO CHARGE MSG] ✓ Calling pbDisplay...")
-        end
-        @battle.pbDisplay(custom_msg)
-        if $DEBUG
-          Console.echo_li("[NO CHARGE MSG] ✓ pbDisplay returned, exiting without showing original message")
-          Console.echo_li("[NO CHARGE MSG] ===== pbChargingTurnMessage END (custom) =====")
-        end
-        return  # Don't call original - we've shown our custom message
-      else
-        if $DEBUG
-          Console.echo_li("[NO CHARGE MSG] ✗ No custom message found, falling back to original")
-        end
-      end
-    else
-      if $DEBUG
-        Console.echo_li("[NO CHARGE MSG] ✗ Not a field skip, showing normal message")
-      end
-    end
-    
-    # Call original charging message only if we didn't show custom message
-    if $DEBUG
-      Console.echo_li("[NO CHARGE MSG] Calling original pbChargingTurnMessage...")
-    end
+    # Just call original - we'll show our message separately
     field_pbChargingTurnMessage(user, targets)
-    if $DEBUG
-      Console.echo_li("[NO CHARGE MSG] ===== pbChargingTurnMessage END (original) =====")
-    end
   end
   
   def get_no_charging_message
@@ -245,6 +245,10 @@ class Battle::Move::TwoTurnMove
     return nil
   end
 end
+
+# NOTE: pbChargingTurnMessage is only called when the move charges (returns true from pbIsChargingTurn?)
+# Since we return false (move executes immediately), the charging message method is never called.
+# We show our custom message in pbEffectGeneral instead.
 
 #===============================================================================
 # 4. MIMICRY ABILITY
@@ -536,6 +540,458 @@ class Battle
 end
 
 #===============================================================================
+# 8. BLOCKED STATUSES
+# Prevent certain status conditions on specific fields
+#===============================================================================
+
+# Prevent status from being inflicted
+class Battle::Battler
+  alias field_blocked_pbCanInflictStatus? pbCanInflictStatus?
+  
+  def pbCanInflictStatus?(newStatus, user, showMessages, move = nil, ignoreStatus = false)
+    # Check if field blocks this status
+    if @battle.has_field? && @battle.current_field.respond_to?(:blocked_statuses)
+      blocked = @battle.current_field.blocked_statuses
+      if blocked && blocked.include?(newStatus)
+        if showMessages
+          field_name = @battle.current_field.name
+          case newStatus
+          when :FROZEN
+            @battle.pbDisplay(_INTL("The {1} prevents freezing!", field_name))
+          when :CONFUSED
+            @battle.pbDisplay(_INTL("The {1} keeps minds clear!", field_name))
+          when :SLEEP
+            @battle.pbDisplay(_INTL("The {1} prevents sleep!", field_name))
+          when :BURN
+            @battle.pbDisplay(_INTL("The {1} prevents burns!", field_name))
+          when :POISON
+            @battle.pbDisplay(_INTL("The {1} prevents poison!", field_name))
+          when :PARALYSIS
+            @battle.pbDisplay(_INTL("The {1} prevents paralysis!", field_name))
+          else
+            @battle.pbDisplay(_INTL("The {1} prevents status conditions!", field_name))
+          end
+        end
+        return false
+      end
+    end
+    
+    # Call original
+    return field_blocked_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
+  end
+end
+
+# Cure blocked statuses when field changes or Pokemon enters
+class Battle::Field
+  alias blocked_status_initialize initialize
+  
+  def initialize(*args)
+    blocked_status_initialize(*args)
+    
+    # Register field effect to cure blocked statuses when field starts
+    existing_begin_battle = @effects[:begin_battle] || proc { }
+    @effects[:begin_battle] = proc {
+      existing_begin_battle.call
+      cure_blocked_statuses_on_field
+    }
+  end
+  
+  def cure_blocked_statuses_on_field
+    return unless @blocked_statuses && @blocked_statuses.any?
+    
+    @battle.allBattlers.each do |battler|
+      next if battler.fainted?
+      
+      # Check main status
+      if @blocked_statuses.include?(battler.status)
+        old_status = battler.status
+        battler.pbCureStatus(false)
+        
+        status_name = case old_status
+        when :FROZEN then "freeze"
+        when :BURN then "burn"
+        when :PARALYSIS then "paralysis"
+        when :POISON then "poison"
+        when :SLEEP then "sleep"
+        else "status condition"
+        end
+        
+        @battle.pbDisplay(_INTL("{1}'s {2} was cured by the {3}!", 
+                               battler.pbThis, status_name, @name))
+      end
+      
+      # Check confusion (volatile status)
+      if @blocked_statuses.include?(:CONFUSED) && battler.effects[PBEffects::Confusion] > 0
+        battler.pbCureConfusion
+        @battle.pbDisplay(_INTL("{1} snapped out of confusion thanks to the {2}!", 
+                               battler.pbThis, @name))
+      end
+    end
+  end
+  
+  def register_blocked_status_cure
+    return unless @blocked_statuses && @blocked_statuses.any?
+    
+    # Register effect to cure statuses when Pokemon enter
+    @effects[:on_battler_enter] = proc { |battler|
+      next if battler.fainted?
+      
+      # Check main status
+      if @blocked_statuses.include?(battler.status)
+        old_status = battler.status
+        battler.pbCureStatus(false)
+        
+        status_name = case old_status
+        when :FROZEN then "freeze"
+        when :BURN then "burn"
+        when :PARALYSIS then "paralysis"
+        when :POISON then "poison"
+        when :SLEEP then "sleep"
+        else "status condition"
+        end
+        
+        @battle.pbDisplay(_INTL("{1}'s {2} was cured by the {3}!", 
+                               battler.pbThis, status_name, @name))
+      end
+      
+      # Check confusion
+      if @blocked_statuses.include?(:CONFUSED) && battler.effects[PBEffects::Confusion] > 0
+        battler.pbCureConfusion
+        @battle.pbDisplay(_INTL("{1} snapped out of confusion thanks to the {2}!", 
+                               battler.pbThis, @name))
+      end
+    }
+  end
+end
+
+#===============================================================================
+# 9. BLOCKED WEATHER
+# Prevent certain weather conditions on specific fields
+#===============================================================================
+class Battle::Field
+  alias blocked_weather_initialize initialize
+  
+  def initialize(*args)
+    blocked_weather_initialize(*args)
+    
+    # Clear blocked weather when field starts
+    existing_begin_battle = @effects[:begin_battle] || proc { }
+    @effects[:begin_battle] = proc {
+      existing_begin_battle.call
+      clear_blocked_weather
+    }
+  end
+  
+  def clear_blocked_weather
+    return unless @blocked_weather && @blocked_weather.any?
+    
+    # Check if current weather is blocked
+    current = @battle.field.weather
+    if @blocked_weather.include?(current)
+      weather_name = case current
+      when :Sun, :HarshSun then "harsh sunlight"
+      when :Rain, :HeavyRain then "rain"
+      when :Sandstorm then "sandstorm"
+      when :Hail, :Snow then "hail"
+      else "weather"
+      end
+      
+      @battle.pbDisplay(_INTL("The {1} clears away the {2}!", @name, weather_name))
+      @battle.pbStartWeather(nil, :None, false)
+    end
+  end
+  
+  def register_blocked_weather
+    return unless @blocked_weather && @blocked_weather.any?
+    
+    @effects[:block_weather] = proc { |new_weather, user, fixedDuration|
+      if @blocked_weather.include?(new_weather)
+        weather_name = case new_weather
+        when :Sun, :HarshSun then "harsh sunlight"
+        when :Rain, :HeavyRain then "rain"
+        when :Sandstorm then "sandstorm"
+        when :Hail, :Snow then "hail"
+        else "weather"
+        end
+        
+        @battle.pbDisplay(_INTL("The {1} prevents {2} from starting!", @name, weather_name))
+        next true  # Block the weather
+      end
+      
+      next false  # Allow the weather
+    }
+  end
+end
+
+#===============================================================================
+# 7. ICY FIELD MECHANICS
+#===============================================================================
+
+# Status effect damage multipliers (configured via field data)
+# Hook into end of round to modify status damage
+Battle::Scene.class_eval do
+  alias field_status_pbDamageAnimation pbDamageAnimation
+  
+  def pbDamageAnimation(battler, effectiveness = 0)
+    # Store if this is status damage being animated
+    @last_damage_battler = battler
+    field_status_pbDamageAnimation(battler, effectiveness)
+  end
+end
+
+class Battle::Battler
+  alias field_status_pbReduceHP pbReduceHP
+  
+  def pbReduceHP(amt, anim = false, registerDamage = true, anyAnim = true)
+    # Check if this is status damage and field modifies it
+    if @status != :NONE && @battle.has_field? && @battle.current_field.respond_to?(:status_damage_mods)
+      status_mods = @battle.current_field.status_damage_mods
+      if status_mods && status_mods[@status]
+        multiplier = status_mods[@status]
+        # Only modify if this looks like status damage (small amounts)
+        if amt > 0 && amt <= @totalhp / 4
+          original_amt = amt
+          amt = (amt * multiplier).round
+          amt = 1 if amt < 1
+          
+          if $DEBUG && amt != original_amt
+            Console.echo_li("[STATUS MOD] #{@status} damage: #{original_amt} -> #{amt} (#{multiplier}x)")
+          end
+        end
+      end
+    end
+    
+    # Call original with potentially modified damage
+    field_status_pbReduceHP(amt, anim, registerDamage, anyAnim)
+  end
+end
+
+# Ice Body - heals 1/16 HP each turn on icy field
+Battle::AbilityEffects::EndOfRoundHealing.add(:ICEBODY,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || battle.current_field.id != :icy
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Slush Rush - doubles speed on icy field
+Battle::AbilityEffects::SpeedCalc.add(:SLUSHRUSH,
+  proc { |ability, battler, mult|
+    if battler.battle.has_field? && battler.battle.current_field.id == :icy
+      mult *= 2
+    end
+    next mult
+  }
+)
+
+# Snow Cloak - increases evasion on icy field
+Battle::AbilityEffects::AccuracyCalcFromTarget.add(:SNOWCLOAK,
+  proc { |ability, mults, user, target, move, type|
+    if target.battle.has_field? && target.battle.current_field.id == :icy
+      mults[:accuracy_multiplier] *= 0.8  # 20% harder to hit (inverse of 1.25 evasion)
+    end
+  }
+)
+
+# Liquid Voice - Makes sound moves Ice-type on Icy field
+Battle::AbilityEffects::ModifyMoveBaseType.copy(:LIQUIDVOICE,
+  proc { |ability, user, move, type|
+    next if !move.soundMove?
+    
+    # Check if on icy field
+    if user.battle.has_field? && user.battle.current_field.id == :icy
+      next :ICE
+    else
+      # Normal Liquid Voice makes sound moves Water-type
+      next :WATER
+    end
+  }
+)
+
+# Aurora Veil - Can be used regardless of weather on Icy field
+class Battle::Move::StartWeakenDamageAgainstUserSideIfHail
+  alias icy_pbMoveFailed? pbMoveFailed?
+  
+  def pbMoveFailed?(user, targets)
+    # On icy field, Aurora Veil always works
+    if @battle.has_field? && @battle.current_field.id == :icy
+      return false
+    end
+    
+    # Call original (checks for hail/snow)
+    return icy_pbMoveFailed?(user, targets)
+  end
+end
+
+# Earthquake moves create spikes on icy field
+class Battle
+  def icy_field_spike_layer
+    return unless has_field?
+    return unless current_field.id == :icy
+    
+    pbDisplay(_INTL("The quake broke up the ice into spiky pieces!"))
+    
+    # Add one layer of spikes to both sides
+    2.times do |side|
+      next if sides[side].effects[PBEffects::Spikes] >= 3
+      sides[side].effects[PBEffects::Spikes] += 1
+    end
+  end
+end
+
+class Battle::Move
+  alias icy_spike_pbEffectAfterAllHits pbEffectAfterAllHits
+  
+  def pbEffectAfterAllHits(user, target)
+    icy_spike_pbEffectAfterAllHits(user, target)
+    
+    # Earthquake moves on icy field create spikes
+    earthquake_moves = [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, 
+                       :TECTONICRAGE]
+    
+    if earthquake_moves.include?(@id)
+      @battle.icy_field_spike_layer
+    end
+  end
+end
+
+# Move stat boosts - configured via field data
+# This is registered as a field effect in the Field initialization
+class Battle::Field
+  def register_move_stat_boosts
+    return unless @move_stat_boosts && @move_stat_boosts.any?
+    
+    @effects[:end_of_move] = proc { |user, targets, move, numHits|
+      if $DEBUG
+        Console.echo_li("[MOVESTATBOOST] ===== START =====")
+        Console.echo_li("[MOVESTATBOOST] Move: #{move.id}")
+        Console.echo_li("[MOVESTATBOOST] User: #{user.pbThis} (index: #{user.index})")
+      end
+      
+      # Check each stat boost configuration
+      @move_stat_boosts.each_with_index do |config, index|
+        if $DEBUG
+          Console.echo_li("[MOVESTATBOOST] --- Config #{index} ---")
+        end
+        
+        # Check if this move qualifies
+        qualifies = check_move_stat_boost_qualification(user, move, config)
+        
+        if $DEBUG
+          Console.echo_li("[MOVESTATBOOST] Qualifies? #{qualifies}")
+        end
+        
+        next unless qualifies
+        
+        # Apply the stat boost TO THE USER
+        stat = config[:stat]
+        stages = config[:stages] || 1
+        message = config[:message]
+        
+        if $DEBUG
+          Console.echo_li("[MOVESTATBOOST] >>> BOOSTING USER: #{user.pbThis} <<<")
+          Console.echo_li("[MOVESTATBOOST] >>> Stat: #{stat}, Stages: #{stages} <<<")
+        end
+        
+        if user.pbCanRaiseStatStage?(stat, user, move)
+          user.pbRaiseStatStage(stat, stages, user)
+          if message
+            @battle.pbDisplay(message.gsub("{1}", user.pbThis))
+          end
+          if $DEBUG
+            Console.echo_li("[MOVESTATBOOST] ✓ SUCCESS: #{user.pbThis}'s #{stat} raised!")
+          end
+        else
+          if $DEBUG
+            Console.echo_li("[MOVESTATBOOST] ✗ FAILED: Cannot raise #{user.pbThis}'s #{stat}")
+          end
+        end
+      end
+      
+      if $DEBUG
+        Console.echo_li("[MOVESTATBOOST] ===== END =====")
+      end
+    }
+  end
+  
+  def check_move_stat_boost_qualification(user, move, config)
+    # Check grounded requirement
+    if config[:grounded]
+      is_grounded = !user.airborne?
+      if $DEBUG
+        Console.echo_li("[MOVESTATBOOST] Grounded required: true, User grounded: #{is_grounded}")
+      end
+      return false unless is_grounded
+    end
+    
+    # Check specific moves
+    if config[:moves] && config[:moves].any?
+      has_move = config[:moves].include?(move.id)
+      if $DEBUG
+        Console.echo_li("[MOVESTATBOOST] Specific moves: #{config[:moves].inspect}, Move #{move.id} included: #{has_move}")
+      end
+      return true if has_move
+    end
+    
+    # Check conditions
+    conditions = config[:conditions] || []
+    
+    if $DEBUG
+      Console.echo_li("[MOVESTATBOOST] Conditions to check: #{conditions.inspect}")
+    end
+    
+    conditions.each do |condition|
+      result = true
+      case condition
+      when :physical
+        result = move.physicalMove?
+      when :special
+        result = move.specialMove?
+      when :contact
+        result = move.pbContactMove?(user)
+      when :priority
+        result = move.priority > 0
+      when :sound
+        result = move.soundMove?
+      when :punching
+        result = move.punchingMove?
+      when :biting
+        result = move.bitingMove?
+      when :slicing
+        result = move.slicingMove?
+      when :wind
+        result = move.windMove?
+      when :pulse
+        result = move.pulseMove?
+      when :ballistic
+        result = move.ballMove?
+      end
+      
+      if $DEBUG
+        Console.echo_li("[MOVESTATBOOST]   :#{condition} - #{result}")
+      end
+      
+      return false unless result
+    end
+    
+    if $DEBUG
+      Console.echo_li("[MOVESTATBOOST] All conditions passed!")
+    end
+    
+    return true
+  end
+end
+
+#===============================================================================
 # EXAMPLE USAGE IN FIELD DATA
 #===============================================================================
 # :CAVE => {
@@ -559,6 +1015,48 @@ end
 #   },
 #   :mimicry => :ROCK,  # Mimicry ability becomes Rock type
 # }
+#
+# :ICY => {
+#   :name => "Icy Field",
+#   :fieldMessage => ["The field is covered in ice!"],
+#   :mimicry => :ICE,
+#   :abilityMods => {
+#     :REFRIGERATE => { multiplier: 1.5 },
+#   },
+#   :statusDamageMods => {
+#     :BURN => 0.5,
+#   },
+#   :moveStatBoosts => [
+#     {
+#       grounded: true,
+#       conditions: [:physical, :contact, :priority],
+#       stat: :SPEED,
+#       stages: 1,
+#       message: "{1} gained momentum on the ice!"
+#     }
+#   ],
+# }
+#
+# :VOLCANIC => {
+#   :name => "Volcanic Field",
+#   :blockedStatuses => [:FROZEN],  # Cannot freeze on volcanic field
+#   :blockedWeather => [:Hail, :Snow],  # Cannot set hail/snow
+# }
+#
+# :BEACH => {
+#   :name => "Beach",
+#   :blockedStatuses => [:CONFUSED],  # Cannot confuse on beach
+# }
+#
+# BLOCKED STATUSES:
+# - :FROZEN, :BURN, :PARALYSIS, :POISON, :SLEEP, :CONFUSED
+#
+# BLOCKED WEATHER:
+# - :Sun, :HarshSun - Sunny weather
+# - :Rain, :HeavyRain - Rainy weather
+# - :Sandstorm - Sandstorm
+# - :Hail, :Snow - Hail/Snow weather
+#
 #
 # HOW NO CHARGING WORKS:
 # Turn 1 (with :noCharging):
