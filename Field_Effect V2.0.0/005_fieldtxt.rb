@@ -331,6 +331,45 @@ FIELDEFFECTS = {
 	:mimicry => :FIRE,
 	:blockedStatuses => [:FROZEN],  # Can't freeze on volcanic field
 	:blockedWeather => [:Hail, :Snow],
+    :abilityStatBoosts => {
+      :MAGMAARMOR => { 
+        stat: :DEFENSE, 
+        stages: 1, 
+        message: "{1}'s Magma Armor hardened its body!" 
+      }
+	    :STEAMENGINE => { 
+        stat: :SPEED, 
+        stages: 1, 
+        message: "{1}'s Steam Engine boosted its speed!" 
+      }
+    },
+    :abilityFormChanges => {
+      :EISCUE => {
+        :ICEFACE => { form: 1, show_ability: true, message: "{1}'s Ice Face melted!" }
+      }
+    },
+	:healthChanges => [
+    {
+      grounded: true,
+      exclude_types: [:FIRE],
+      healing: false,
+      damage_type: :FIRE,
+      amount: 1/8.0,
+      message: "{1} was hurt by the {2}!",
+      immune_abilities: [:FLAMEBODY, :FLAREBOOST, :FLASHFIRE, :HEATPROOF, 
+                        :MAGMAARMOR, :WATERBUBBLE, :WATERVEIL],
+      immune_effects: [PBEffects::AquaRing],
+      multiplier_abilities: {
+        :FLUFFY => 2.0,
+        :GRASSPELT => 2.0,
+        :ICEBODY => 2.0,
+        :LEAFGUARD => 2.0
+      },
+      multiplier_effects: {
+        PBEffects::TarShot => 2.0
+      }
+    }
+  ],
 	:damageMods => {
 		2.0 => [:SMOG, :CLEARSMOG],
 		1.5 => [:SMACKDOWN, :THOUSANDARROWS, :ROCKSLIDE, :INFERNALPARADE],

@@ -15,6 +15,9 @@ class Battle::Field
   attr_reader :move_stat_boosts       # Stat boosts from using certain moves
   attr_reader :blocked_statuses       # Status conditions that cannot be inflicted
   attr_reader :blocked_weather        # Weather conditions that cannot be set
+  attr_reader :health_changes         # End of round healing/damage
+  attr_reader :ability_stat_boosts    # Stat boosts when battler with ability enters
+  attr_reader :ability_form_changes   # Form changes when battler with ability enters
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -27,6 +30,9 @@ class Battle::Field
     @move_stat_boosts ||= []
     @blocked_statuses ||= []
     @blocked_weather ||= []
+    @health_changes ||= []
+    @ability_stat_boosts ||= {}
+    @ability_form_changes ||= {}
   end
   
   # Called after initialization to register the no_charging effect
@@ -632,33 +638,39 @@ class Battle::Field
   def register_blocked_status_cure
     return unless @blocked_statuses && @blocked_statuses.any?
     
-    # Register effect to cure statuses when Pokemon enter
-    @effects[:on_battler_enter] = proc { |battler|
-      next if battler.fainted?
+    # Cure blocked statuses when field starts
+    existing_begin_battle = @effects[:begin_battle] || proc { }
+    @effects[:begin_battle] = proc {
+      existing_begin_battle.call
       
-      # Check main status
-      if @blocked_statuses.include?(battler.status)
-        old_status = battler.status
-        battler.pbCureStatus(false)
+      # Cure blocked statuses on all active battlers
+      @battle.allBattlers.each do |battler|
+        next if battler.fainted?
         
-        status_name = case old_status
-        when :FROZEN then "freeze"
-        when :BURN then "burn"
-        when :PARALYSIS then "paralysis"
-        when :POISON then "poison"
-        when :SLEEP then "sleep"
-        else "status condition"
+        # Check main status
+        if @blocked_statuses.include?(battler.status)
+          old_status = battler.status
+          battler.pbCureStatus(false)
+          
+          status_name = case old_status
+          when :FROZEN then "freeze"
+          when :BURN then "burn"
+          when :PARALYSIS then "paralysis"
+          when :POISON then "poison"
+          when :SLEEP then "sleep"
+          else "status condition"
+          end
+          
+          @battle.pbDisplay(_INTL("{1}'s {2} was cured by the {3}!", 
+                                 battler.pbThis, status_name, @name))
         end
         
-        @battle.pbDisplay(_INTL("{1}'s {2} was cured by the {3}!", 
-                               battler.pbThis, status_name, @name))
-      end
-      
-      # Check confusion
-      if @blocked_statuses.include?(:CONFUSED) && battler.effects[PBEffects::Confusion] > 0
-        battler.pbCureConfusion
-        @battle.pbDisplay(_INTL("{1} snapped out of confusion thanks to the {2}!", 
-                               battler.pbThis, @name))
+        # Check confusion
+        if @blocked_statuses.include?(:CONFUSED) && battler.effects[PBEffects::Confusion] > 0
+          battler.pbCureConfusion
+          @battle.pbDisplay(_INTL("{1} snapped out of confusion thanks to the {2}!", 
+                                 battler.pbThis, @name))
+        end
       end
     }
   end
@@ -719,6 +731,243 @@ class Battle::Field
       end
       
       next false  # Allow the weather
+    }
+  end
+end
+
+#===============================================================================
+# 10. HEALTH CHANGES
+# End of round healing or damage based on conditions
+#===============================================================================
+class Battle::Field
+  def register_health_changes
+    return unless @health_changes && @health_changes.any?
+    
+    @effects[:EOR_field_battler] = proc { |battler|
+      next if battler.fainted?
+      
+      @health_changes.each do |config|
+        # Check if battler qualifies
+        next unless battler_qualifies_for_health_change?(battler, config)
+        
+        amount_fraction = config[:amount]  # e.g., 1/16 or 1/8
+        is_healing = config[:healing]      # true for heal, false for damage
+        damage_type = config[:damage_type] # e.g., :FIRE for type-scaled damage
+        message = config[:message]
+        
+        # Calculate the amount
+        amount = (battler.totalhp * amount_fraction).round
+        amount = 1 if amount < 1
+        
+        # Apply type effectiveness if it's damage with a type
+        if !is_healing && damage_type
+          effectiveness = Effectiveness.calculate(damage_type, 
+                                                  battler.pbTypes[0], 
+                                                  battler.pbTypes[1])
+          amount = (amount * effectiveness / Effectiveness::NORMAL_EFFECTIVE).round
+          amount = 1 if amount < 1
+        end
+        
+        # Apply multipliers from abilities/effects (damage only)
+        if !is_healing
+          multiplier = calculate_health_change_multiplier(battler, config)
+          if multiplier != 1.0
+            amount = (amount * multiplier).round
+            amount = 1 if amount < 1
+          end
+        end
+        
+        if is_healing
+          # Healing
+          next unless battler.canHeal?
+          battler.pbRecoverHP(amount)
+          if message
+            @battle.pbDisplay(message.gsub("{1}", battler.pbThis).gsub("{2}", @name))
+          end
+        else
+          # Damage - don't show animation or message, pbReduceHP with registerDamage=true handles it
+          battler.pbReduceHP(amount, false, true)
+          battler.pbFaint if battler.fainted?
+        end
+      end
+    }
+  end
+  
+  def battler_qualifies_for_health_change?(battler, config)
+    # Check grounded requirement
+    if config[:grounded]
+      return false unless battler.grounded?
+    end
+    
+    # Check type requirements
+    if config[:types]
+      has_type = false
+      config[:types].each do |type|
+        if battler.pbHasType?(type)
+          has_type = true
+          break
+        end
+      end
+      return false unless has_type
+    end
+    
+    # Check excluded types
+    if config[:exclude_types]
+      config[:exclude_types].each do |type|
+        return false if battler.pbHasType?(type)
+      end
+    end
+    
+    # Check immunities (abilities, effects that prevent damage)
+    if config[:immune_abilities]
+      config[:immune_abilities].each do |ability|
+        return false if battler.hasActiveAbility?(ability)
+      end
+    end
+    
+    if config[:immune_effects]
+      config[:immune_effects].each do |effect|
+        value = battler.effects[effect]
+        # Check if effect is active (can be true, or > 0 for counters)
+        return false if value == true || (value.is_a?(Integer) && value > 0)
+      end
+    end
+    
+    return true
+  end
+  
+  def calculate_health_change_multiplier(battler, config)
+    multiplier = 1.0
+    
+    # Check for damage multiplier abilities
+    if config[:multiplier_abilities]
+      config[:multiplier_abilities].each do |ability, mult|
+        if battler.hasActiveAbility?(ability)
+          multiplier *= mult
+        end
+      end
+    end
+    
+    # Check for damage multiplier effects
+    if config[:multiplier_effects]
+      config[:multiplier_effects].each do |effect, mult|
+        value = battler.effects[effect]
+        # Check if effect is active (can be true, or > 0 for counters)
+        if value == true || (value.is_a?(Integer) && value > 0)
+          multiplier *= mult
+        end
+      end
+    end
+    
+    return multiplier
+  end
+end
+
+#===============================================================================
+# 11. ABILITY STAT BOOSTS
+# Stat boosts when Pokémon with certain abilities enter the field
+#===============================================================================
+class Battle::Field
+  def register_ability_stat_boosts
+    return unless @ability_stat_boosts && @ability_stat_boosts.any?
+    
+    # Register ability effects for each configured ability
+    @ability_stat_boosts.each do |ability, config|
+      stat = config[:stat]
+      stages = config[:stages] || 1
+      message = config[:message]
+      field_id = @id
+      field_name = @name
+      
+      # Add to ability effects that trigger on switch-in
+      Battle::AbilityEffects::OnSwitchIn.add(ability,
+        proc { |ability_intern, battler, battle|
+          # Only trigger if on the correct field
+          next if !battle.has_field? || battle.current_field.id != field_id
+          next if battler.fainted?
+          
+          if battler.pbCanRaiseStatStage?(stat, battler, nil)
+            battle.pbShowAbilitySplash(battler)
+            battler.pbRaiseStatStage(stat, stages, battler)
+            if message
+              battle.pbDisplay(message.gsub("{1}", battler.pbThis).gsub("{2}", field_name))
+            end
+            battle.pbHideAbilitySplash(battler)
+          end
+        }
+      )
+    end
+  end
+  
+  def register_ability_form_changes
+    return unless @ability_form_changes && @ability_form_changes.any?
+    
+    # Register ability effects for each configured species/ability combo
+    @ability_form_changes.each do |species, ability_configs|
+      ability_configs.each do |ability, config|
+        new_form = config[:form]
+        message = config[:message]
+        show_ability = config[:show_ability] || false
+        field_id = @id
+        
+        # Add to ability effects that trigger on switch-in
+        Battle::AbilityEffects::OnSwitchIn.add(ability,
+          proc { |ability_intern, battler, battle|
+            # Only trigger if on the correct field and correct species
+            next if !battle.has_field? || battle.current_field.id != field_id
+            next unless battler.isSpecies?(species)
+            next if battler.fainted?
+            next if battler.form == new_form
+            
+            if show_ability
+              battle.pbShowAbilitySplash(battler, true)
+              battle.pbHideAbilitySplash(battler)
+            end
+            
+            if message
+              battler.pbChangeForm(new_form, message.gsub("{1}", battler.pbThis))
+            else
+              battler.pbChangeForm(new_form, _INTL("{1} transformed!", battler.pbThis))
+            end
+          }
+        )
+      end
+    end
+    
+    # Also add to begin_battle for lead Pokemon
+    existing_begin_battle = @effects[:begin_battle] || proc { }
+    @effects[:begin_battle] = proc {
+      existing_begin_battle.call
+      
+      # Apply form changes to all active battlers at battle start
+      @battle.allBattlers.each do |battler|
+        next if battler.fainted?
+        
+        @ability_form_changes.each do |species, ability_configs|
+          next unless battler.isSpecies?(species)
+          
+          ability_configs.each do |ability, config|
+            next unless battler.hasActiveAbility?(ability)
+            
+            new_form = config[:form]
+            message = config[:message]
+            show_ability = config[:show_ability] || false
+            
+            if battler.form != new_form
+              if show_ability
+                @battle.pbShowAbilitySplash(battler, true)
+                @battle.pbHideAbilitySplash(battler)
+              end
+              
+              if message
+                battler.pbChangeForm(new_form, message.gsub("{1}", battler.pbThis))
+              else
+                battler.pbChangeForm(new_form, _INTL("{1} transformed!", battler.pbThis))
+              end
+            end
+          end
+        end
+      end
     }
   end
 end
@@ -1038,15 +1287,89 @@ end
 # }
 #
 # :VOLCANIC => {
-#   :name => "Volcanic Field",
-#   :blockedStatuses => [:FROZEN],  # Cannot freeze on volcanic field
-#   :blockedWeather => [:Hail, :Snow],  # Cannot set hail/snow
+#   :blockedStatuses => [:FROZEN],
+#   :blockedWeather => [:Hail, :Snow],
+#   :abilityStatBoosts => {
+#     :MAGMAARMOR => { stat: :DEFENSE, stages: 1, message: "{1}'s Magma Armor hardened its body!" }
+#   },
+#   :abilityFormChanges => {
+#     :EISCUE => {
+#       :ICEFACE => { form: 1, show_ability: true, message: "{1}'s Ice Face melted!" }
+#     }
+#   },
+#   :healthChanges => [
+#     {
+#       grounded: true,
+#       exclude_types: [:FIRE],
+#       healing: false,
+#       damage_type: :FIRE,
+#       amount: 1/8.0,
+#       message: "{1} was hurt by the {2}!",
+#       immune_abilities: [:FLAMEBODY, :FLAREBOOST, :FLASHFIRE, :HEATPROOF, 
+#                         :MAGMAARMOR, :WATERBUBBLE, :WATERVEIL],
+#       immune_effects: [PBEffects::AquaRing],
+#       multiplier_abilities: {
+#         :FLUFFY => 2.0,
+#         :GRASSPELT => 2.0,
+#         :ICEBODY => 2.0,
+#         :LEAFGUARD => 2.0
+#       },
+#       multiplier_effects: {
+#         PBEffects::TarShot => 2.0
+#       }
+#     }
+#   ],
 # }
 #
-# :BEACH => {
-#   :name => "Beach",
-#   :blockedStatuses => [:CONFUSED],  # Cannot confuse on beach
+# ABILITY FORM CHANGES:
+# :abilityFormChanges => {
+#   :EISCUE => {
+#     :ICEFACE => { form: 1, show_ability: true, message: "{1}'s Ice Face melted!" }
+#   },
+#   :DARMANITAN => {
+#     :ZENMODE => { form: 1, message: "{1} entered Zen Mode!" }
+#   }
 # }
+# - Triggers when Pokémon with the ability/species enters the field
+# - form: New form number (0 = base form, 1 = alt form, etc.)
+# - show_ability: true/false - Show ability splash animation
+# - message: Transformation message (use {1} for Pokémon name)
+#
+# ABILITY STAT BOOSTS:
+# :abilityStatBoosts => {
+#   :MAGMAARMOR => { stat: :DEFENSE, stages: 1, message: "..." },
+#   :FLASHFIRE => { stat: :SPECIAL_ATTACK, stages: 2 }  # Uses default message
+# }
+# - Triggers when Pokémon with the ability enters (switch-in or start of battle)
+# - stat: :ATTACK, :DEFENSE, :SPEED, :SPECIAL_ATTACK, :SPECIAL_DEFENSE, :EVASION, :ACCURACY
+# - stages: Number of stages to boost (default 1)
+# - message: Optional custom message (use {1} for Pokémon, {2} for field name)
+#
+#
+# :GRASSY => {
+#   :healthChanges => [
+#     {
+#       grounded: true,
+#       healing: true,
+#       amount: 1/16.0,
+#       message: "{1}'s HP was restored by the {2}!"
+#     }
+#   ],
+# }
+#
+# HEALTH CHANGES OPTIONS:
+# - grounded: true/false - Must be grounded
+# - types: [:FIRE, :WATER] - Must have one of these types
+# - exclude_types: [:FIRE] - Must NOT have these types
+# - healing: true/false - true = heal, false = damage
+# - damage_type: :FIRE - Type for effectiveness calculation (damage only)
+# - amount: 1/8.0 - Fraction of max HP (use decimals: 1/8.0, 1/16.0)
+# - message: "Text" - Use {1} for Pokémon name, {2} for field name
+# - immune_abilities: [:FLAMEBODY, ...] - Abilities that prevent damage/healing
+# - immune_effects: [PBEffects::AquaRing, ...] - Effects that prevent damage/healing
+# - multiplier_abilities: { :FLUFFY => 2.0 } - Abilities that multiply damage (damage only)
+# - multiplier_effects: { PBEffects::TarShot => 2.0 } - Effects that multiply damage (damage only)
+#
 #
 # BLOCKED STATUSES:
 # - :FROZEN, :BURN, :PARALYSIS, :POISON, :SLEEP, :CONFUSED

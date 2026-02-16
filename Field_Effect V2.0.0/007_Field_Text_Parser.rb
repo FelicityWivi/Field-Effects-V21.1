@@ -159,6 +159,30 @@ class FieldTextParser
           end
         end
         
+        # Parse health changes
+        if data[:healthChanges]
+          @health_changes = data[:healthChanges]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded healthChanges for #{@name}: #{@health_changes.inspect}")
+          end
+        end
+        
+        # Parse ability stat boosts
+        if data[:abilityStatBoosts]
+          @ability_stat_boosts = data[:abilityStatBoosts]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded abilityStatBoosts for #{@name}: #{@ability_stat_boosts.inspect}")
+          end
+        end
+        
+        # Parse ability form changes
+        if data[:abilityFormChanges]
+          @ability_form_changes = data[:abilityFormChanges]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded abilityFormChanges for #{@name}: #{@ability_form_changes.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect
@@ -177,6 +201,21 @@ class FieldTextParser
         # Register blocked weather effect
         if @blocked_weather && !@blocked_weather.empty?
           register_blocked_weather
+        end
+        
+        # Register health changes effect
+        if @health_changes && !@health_changes.empty?
+          register_health_changes
+        end
+        
+        # Register ability stat boosts effect (must be near LAST to chain properly)
+        if @ability_stat_boosts && !@ability_stat_boosts.empty?
+          register_ability_stat_boosts
+        end
+        
+        # Register ability form changes effect (must be LAST to chain properly)
+        if @ability_form_changes && !@ability_form_changes.empty?
+          register_ability_form_changes
         end
       end
       
