@@ -979,45 +979,8 @@ end
 # Modify how many stages a move raises or lowers stats
 # e.g. Smokescreen lowers accuracy by 2 stages instead of 1 on volcanic field
 #===============================================================================
-class Battle::Move
-  alias field_stat_stage_pbChangeStatStages pbChangeStatStages
-  
-  def pbChangeStatStages(user, targets, forced = false)
-    # Check if field modifies stat stage changes for this move
-    if @battle.has_field? && @battle.current_field.respond_to?(:move_stat_stage_mods)
-      mods = @battle.current_field.move_stat_stage_mods
-      if mods && mods[@id]
-        config = mods[@id]
-        
-        # Temporarily override the stat stage changes
-        original_stages = {}
-        
-        if config[:stages]
-          # Apply multiplier to all stat changes
-          @statStageChanges&.each_with_index do |change, i|
-            if i.odd?  # Odd indices are stage values
-              original_stages[i] = change
-              @statStageChanges[i] = (change * config[:stages]).round
-            end
-          end
-        end
-        
-        result = field_stat_stage_pbChangeStatStages(user, targets, forced)
-        
-        # Restore original values
-        original_stages.each do |i, val|
-          @statStageChanges[i] = val
-        end
-        
-        return result
-      end
-    end
-    
-    field_stat_stage_pbChangeStatStages(user, targets, forced)
-  end
-end
 
-# Hook into pbLowerStatStage and pbRaiseStatStage on the battler level
+# Hook into pbLowerStatStage on the battler level
 class Battle::Battler
   alias field_stat_mod_pbLowerStatStage pbLowerStatStage
   
