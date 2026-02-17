@@ -1171,7 +1171,7 @@ FIELDEFFECTS = {
 		1.2 => [:PSYCHIC],
 	},
 	:accuracyMods => {
-		90 => [:FOCUSBLAST],
+		90 => [:FOCUSBLAST],  # Focus Blast accuracy increased to 90%
 	},
 	:moveMessages => {
 		"...And with pure focus!" => [:HIDDENPOWER, :STRENGTH, :CLANGOROUSSOULBLAZE, :HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT, :HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE, :HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE, :HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR, :HIDDENPOWERSTE, :HIDDENPOWERFAI],
@@ -1188,16 +1188,27 @@ FIELDEFFECTS = {
 		:PSYCHIC => [:STRENGTH],
 	},
 	:typeAddOns => {},
-	:moveEffects => {
-		"@battle.fieldAccuracyDrop" => [:LEAFTORNADO,:FIRESPIN, :TWISTER, :RAZORWIND, :WHIRLPOOL],
-	},
+	:moveEffects => {},
 	:typeBoosts => {},
 	:typeMessages => {},
-	:typeCondition => {
-		:FLYING => "self.pbIsSpecial?(type)",
+	:typeCondition => {},
+	:typeEffects => {},
+	# Lowers accuracy of all battlers by 1 stage after:
+	#   - Specific moves (spin/wind/tornado effects stir up ash)
+	#   - Special Flying-type moves (gusts stir up the sand)
+	:accuracyDropOnMove => {
+		:message => "The attack stirred up the ash on the ground!",
+		:moves   => [:FIRESPIN, :LEAFTORNADO, :RAZORWIND, :TWISTER, :WHIRLPOOL],
+		:types   => { :FLYING => { special_only: true } },
 	},
-	:typeEffects => {
-		:FLYING => "@battle.fieldAccuracyDrop",
+	# Stat stage changes boosted by the field (uses moveStatStageMods system)
+	# stages: 2 = move does twice its normal stages
+	# stages: 3 = move does three times its normal stages
+	:moveStatStageMods => {
+		:CALMMIND   => { stages: 2, message: "The Beach deepened {1}'s focus! Both Special stats rose sharply!" },
+		:KINESIS    => { stages: 2, message: "The Beach scattered the sand! {1}'s accuracy fell sharply!" },
+		:SANDATTACK => { stages: 2, message: "The Beach scattered the sand! {1}'s accuracy fell sharply!" },
+		:MEDITATE   => { stages: 3, message: "The Beach sharpened {1}'s focus! Attack rose drastically!" },
 	},
 	:changeCondition => {},
 	:fieldChange => {},

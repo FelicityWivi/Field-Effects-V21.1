@@ -90,6 +90,9 @@ class FieldTextParser
         # Parse type effects
         parse_type_effects(data[:typeEffects]) if data[:typeEffects]
         
+        # Parse accuracy drop on move (replaces broken typeEffects+typeCondition eval system)
+        parse_accuracy_drop_on_move(data[:accuracyDropOnMove]) if data[:accuracyDropOnMove]
+        
         # Parse change effects
         parse_change_effects(data[:changeEffects]) if data[:changeEffects]
         
@@ -449,6 +452,53 @@ class FieldTextParser
             rescue => e
               # Silent fail for eval errors
             end
+          end
+        }
+      end
+      
+      define_method(:parse_accuracy_drop_on_move) do |config|
+        # config: { message:, moves: [:MOVE,...], types: { :TYPE => { special_only: bool } } }
+        return unless config
+        
+        trigger_moves   = Array(config[:moves])
+        trigger_types   = config[:types] || {}
+        drop_message    = config[:message]
+        
+        existing_eom = @effects[:end_of_move] || proc { |user, targets, move, numHits| }
+        
+        @effects[:end_of_move] = proc { |user, targets, move, numHits|
+          existing_eom.call(user, targets, move, numHits)
+          
+          triggered = false
+          
+          # Check specific moves
+          triggered = true if trigger_moves.include?(move.id)
+          
+          # Check type conditions
+          unless triggered
+            move_type = move.calcType
+            if trigger_types.key?(move_type)
+              opts = trigger_types[move_type]
+              if opts[:special_only]
+                triggered = move.specialMove?
+              else
+                triggered = true
+              end
+            end
+          end
+          
+          next unless triggered
+          
+          # Collect all battlers that can have accuracy lowered
+          all_battlers = ([user] + targets).flatten.compact.uniq
+          lowering = all_battlers.select { |b| b.pbCanLowerStatStage?(:ACCURACY, user, move) }
+          next if lowering.empty?
+          
+          @battle.pbDisplay(drop_message) if drop_message
+          lowering.each { |b| b.pbLowerStatStage(:ACCURACY, 1, user) }
+          
+          if $DEBUG
+            Console.echo_li("[ACCURACY DROP] #{move.id} (#{move.calcType}) triggered on #{@name}")
           end
         }
       end

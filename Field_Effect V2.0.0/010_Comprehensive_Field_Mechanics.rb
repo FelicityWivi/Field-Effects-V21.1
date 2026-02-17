@@ -1169,6 +1169,98 @@ class Battle
 end
 
 #===============================================================================
+# 14. BEACH FIELD MOVE EFFECTS
+# Hardcoded move behaviour changes specific to the beach field:
+#   - Focus Energy:  boosts crit rate by 3 stages instead of 2
+#   - Shore Up:      fully restores HP instead of partial heal
+#   - Psych Up:      additionally cures the user's status condition
+#   - Sand Tomb:     lowers trapped Pokémon's accuracy by 1 each EOR
+#===============================================================================
+
+BEACH_FIELD_IDS = %i[beach].freeze
+
+# FOCUS ENERGY - +3 crit stages instead of +2
+# Focus Energy's function class sets FocusEnergy to 2.
+# We intercept pbEffectGeneral (where the effect is applied) and boost to 3.
+class Battle::Move::RaiseUserCriticalHitRate2
+  alias beach_focus_energy_pbEffectGeneral pbEffectGeneral
+
+  def pbEffectGeneral(user)
+    beach_focus_energy_pbEffectGeneral(user)
+    return unless @battle.has_field? && BEACH_FIELD_IDS.include?(@battle.current_field.id)
+    # Base effect sets to 2; bump to 3
+    user.effects[PBEffects::FocusEnergy] = 3
+    @battle.pbDisplay(_INTL("The Beach's focus sharpened {1}'s concentration further!", user.pbThis))
+  end
+end
+
+# SHORE UP - Full HP restore instead of partial
+# Shore Up's function code is "HealUserDependingOnSandstorm".
+# We override pbEffectGeneral to fully restore HP on beach field.
+class Battle::Move::HealUserDependingOnSandstorm
+  alias beach_shore_up_pbEffectGeneral pbEffectGeneral
+
+  def pbEffectGeneral(user)
+    return beach_shore_up_pbEffectGeneral(user) unless @battle.has_field? && BEACH_FIELD_IDS.include?(@battle.current_field.id)
+    return unless id == :SHOREUP
+    return unless user.canHeal?
+    user.pbRecoverHP(user.totalhp)
+    @battle.pbDisplay(_INTL("{1} was fully restored by the Beach!", user.pbThis))
+  end
+end
+
+# PSYCH UP - Additionally cures user's status
+class Battle::Move::UserCopyTargetStatStages
+  alias beach_psych_up_pbEffectAgainstTarget pbEffectAgainstTarget
+
+  def pbEffectAgainstTarget(user, target)
+    beach_psych_up_pbEffectAgainstTarget(user, target)
+    return unless @battle.has_field? && BEACH_FIELD_IDS.include?(@battle.current_field.id)
+    return if user.status == :NONE
+    old_status = user.status
+    user.pbCureStatus(false)
+    case old_status
+    when :BURN      then @battle.pbDisplay(_INTL("The Beach's calm soothed {1}'s burn!", user.pbThis))
+    when :POISON    then @battle.pbDisplay(_INTL("The Beach's calm cured {1}'s poisoning!", user.pbThis))
+    when :PARALYSIS then @battle.pbDisplay(_INTL("The Beach's calm cured {1}'s paralysis!", user.pbThis))
+    when :SLEEP     then @battle.pbDisplay(_INTL("The Beach's calm woke up {1}!", user.pbThis))
+    when :FROZEN    then @battle.pbDisplay(_INTL("The Beach's warmth thawed {1}!", user.pbThis))
+    end
+  end
+end
+
+# SAND TOMB - Lower trapped Pokémon's accuracy by 1 stage each EOR
+# Sand Tomb sets PBEffects::Trapping on the target.
+# PBEffects::TrappingMove stores which move caused the trap.
+# We hook into pbEndOfRoundPhase to apply the accuracy drop after the trap damage.
+class Battle
+  alias beach_sand_tomb_pbEndOfRoundPhase pbEndOfRoundPhase
+
+  def pbEndOfRoundPhase
+    beach_sand_tomb_pbEndOfRoundPhase
+    return unless has_field? && BEACH_FIELD_IDS.include?(current_field.id)
+
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Trapping] > 0
+      
+      # Check if the trapping move is Sand Tomb
+      # PBEffects::TrappingMove stores the move symbol in v21.1
+      trapping_move = nil
+      if PBEffects.const_defined?(:TrappingMove)
+        trapping_move = battler.effects[PBEffects::TrappingMove]
+      end
+      # If we can't confirm the move, skip to avoid affecting other trapping moves
+      next unless trapping_move == :SANDTOMB
+      
+      next unless battler.pbCanLowerStatStage?(:ACCURACY, nil, nil)
+      battler.pbLowerStatStage(:ACCURACY, 1, nil)
+      Console.echo_li("[BEACH] Sand Tomb lowered #{battler.pbThis}'s accuracy") if $DEBUG
+    end
+  end
+end
+
+#===============================================================================
 # 13. VOLCANIC FIELD MOVE EFFECTS
 # Hardcoded move behaviour changes specific to the volcanic field:
 #   - Burn Up: Fire typing is restored at the end of the round
