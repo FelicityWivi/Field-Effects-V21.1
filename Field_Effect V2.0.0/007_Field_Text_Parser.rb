@@ -250,6 +250,22 @@ class FieldTextParser
           end
         end
         
+        # Parse ground hits airborne flag
+        if data[:groundHitsAirborne]
+          @ground_hits_airborne = data[:groundHitsAirborne]
+          if $DEBUG
+            Console.echo_li("[PARSER] Ground moves hit airborne on #{@name}")
+          end
+        end
+        
+        # Parse hazard damage multipliers
+        if data[:hazardMultiplier]
+          @hazard_multiplier = data[:hazardMultiplier]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded hazardMultiplier for #{@name}: #{@hazard_multiplier.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect

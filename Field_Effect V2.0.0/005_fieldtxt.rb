@@ -73,6 +73,48 @@ FIELDEFFECTS = {
 	:secretPower => "SHOCKWAVE",
 	:naturePower => :THUNDERBOLT,
 	:mimicry => :ELECTRIC,
+	# Blocked statuses - grounded Pokemon can't sleep
+	:statusImmunity => {
+		:SLEEP => {
+			grounded: true,
+			message: "The electricity jolted {1} awake!"
+		}
+	},
+	# Ability modifications
+	:abilityMods => {
+		:GALVANIZE => { multiplier: 1.5 },
+		:BATTERY => { multiplier: 1.5 },    # Boosts allies' Special Attack
+		:TERAVOLT => { multiplier: 1.5 },   # Electric moves boosted + neutral to Ground
+	},
+	# Abilities activated on Electric Terrain
+	:abilityActivate => {
+		:PLUS        => {},  # SpAtk 1.5x (passive, hardcoded in section 18)
+		:MINUS       => {},  # SpAtk 1.5x (passive, hardcoded in section 18)
+		:SURGESURFER => {},  # Speed doubled (passive, hardcoded in section 18)
+		:QUICKFEET   => {},  # Speed 1.5x (passive, hardcoded in section 18)
+		:VOLTABSORB  => {},  # Heals 1/16 HP EOR (hardcoded in section 18)
+		:MOTORDRIVE  => { eor: true },  # Speed +1 stage at end of turn
+		:SLOWSTART   => { eor: true },  # Counter decreases by 2 instead of 1
+	},
+	# Ability stat boosts on switch-in
+	:abilityStatBoosts => {
+		:STEADFAST => {
+			stat: :SPEED,
+			stages: 1,
+			message: "{1}'s Steadfast boosted its Speed!"
+		},
+		:LIGHTNINGROD => {
+			stat: :SPECIAL_ATTACK,
+			stages: 1,
+			message: "{1}'s Lightning Rod boosted its Special Attack!"
+		},
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:CHARGE => { stats_override: { :SPECIAL_DEFENSE => 2 }, message: "The Electric Terrain supercharged {1}! Sp. Def rose sharply!" },
+		:EERIEIMPULSE => { stages: 3, message: "The Electric Terrain amplified the pulse! {1}'s Sp. Atk fell drastically!" },
+		:ELECTROWEB => { stages: 2, message: "The Electric Terrain amplified the web! {1}'s Speed fell sharply!" },
+	},
 	:damageMods => {
 		1.5 => [:EXPLOSION, :SELFDESTRUCT, :HURRICANE, :SURF, :SMACKDOWN, :MUDDYWATER, :THOUSANDARROWS, :WINDBOLTSTORM],
 		2.0 => [:MAGNETBOMB],
@@ -153,6 +195,30 @@ FIELDEFFECTS = {
 	:secretPower => "SEEDBOMB",
 	:naturePower => :ENERGYBALL,
 	:mimicry => :GRASS,
+	# Abilities activated on Grassy Terrain
+	:abilityActivate => {
+		:GRASSPELT  => {},  # Defense 1.5x (passive, hardcoded in section 19)
+		:LEAFGUARD  => {},  # Always active (passive, hardcoded in section 19)
+		:OVERGROW   => {},  # Always active (passive, hardcoded in section 19)
+		:SAPSIPPER  => {},  # Heals 1/16 HP EOR (hardcoded in section 19)
+		:HARVEST    => {},  # Always activates EOR (hardcoded in section 19)
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:COIL => { stats_override: { :ATTACK => 2, :DEFENSE => 2, :ACCURACY => 2 }, message: "The Grassy Terrain enhanced Coil! Attack, Defense, and Accuracy rose sharply!" },
+		:COTTONSPORE => { stages: 4, message: "The Grassy Terrain scattered spores everywhere! {1}'s Speed drastically fell!" },
+		:GROWTH => { stats_override: { :ATTACK => 2, :SPECIAL_ATTACK => 2 }, message: "The Grassy Terrain nurtured growth! Attack and Sp. Atk rose sharply!" },
+		:WORRYSEED => { additional_stats: { :ATTACK => -1 }, message: "The seed worried {1}! Ability changed and Attack fell!" },
+	},
+	# Item effect modifications
+	:itemEffectMods => {
+		:BIGROOT => { multiplier: 1.6, message: nil }  # 60% boost instead of 30%
+	},
+	# Move-specific charging skip
+	:noCharging => [:RAZORWIND],
+	:noChargingMessages => {
+		:RAZORWIND => "The grass whipped up a cutting wind instantly!",
+	},
 	:damageMods => {
 		1.5 => [:FAIRYWIND, :SILVERWIND, :OMINOUSWIND, :ICYWIND, :RAZORWIND, :GUST, :TWISTER, :GRASSKNOT],
 		0.5 => [:MUDDYWATER, :SURF, :EARTHQUAKE, :MAGNITUDE, :BULLDOZE],
@@ -242,6 +308,37 @@ FIELDEFFECTS = {
 	:secretPower => "MISTBALL",
 	:naturePower => :MISTBALL,
 	:mimicry => :FAIRY,
+	# Status immunity - grounded Pokemon can't be statused
+	:statusImmunity => {
+		:BURN => { grounded: true, message: "The mist protected {1}!" },
+		:PARALYSIS => { grounded: true, message: "The mist protected {1}!" },
+		:POISON => { grounded: true, message: "The mist protected {1}!" },
+		:SLEEP => { grounded: true, message: "The mist protected {1}!" },
+		:FROZEN => { grounded: true, message: "The mist protected {1}!" },
+	},
+	# Ability modifications
+	:abilityMods => {
+		:PIXILATE => { multiplier: 1.5 },
+	},
+	# Abilities activated on Misty Terrain
+	:abilityActivate => {
+		:MARVELSCALE => {},  # Defense 1.5x (passive, section 20)
+		:DRYSKIN     => {},  # Heals 1/16 HP EOR (section 20)
+	},
+	# Ability stat boosts on switch-in
+	:abilityStatBoosts => {
+		:WATERCOMPACTION => {
+			stat: :DEFENSE,
+			stages: 2,
+			message: "{1}'s Water Compaction hardened its shell!"
+		},
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:COSMICPOWER => { stats_override: { :DEFENSE => 2, :SPECIAL_DEFENSE => 2 }, message: "The mist enhanced Cosmic Power! Defense and Sp. Def rose sharply!" },
+		:AROMATICMIST => { stages: 2, message: "The mist amplified the aroma! {1}'s Sp. Def rose sharply!" },
+		:SWEETSCENT => { additional_stats: { :DEFENSE => -1, :SPECIAL_DEFENSE => -1 }, message: "The sweet scent lowered {1}'s defenses!" },
+	},
 	:damageMods => {
 		1.5 => [:MYSTICALFIRE, :MAGICALLEAF, :DOOMDUMMY, :ICYWIND, :MISTBALL, :AURASPHERE, :STEAMERUPTION, :SILVERWIND, :MOONGEISTBEAM, :SMOG, :CLEARSMOG, :STRANGESTEAM, :SPRINGTIDESTORM],
 		0.5 => [:DARKPULSE, :SHADOWBALL, :NIGHTDAZE],
@@ -948,6 +1045,23 @@ FIELDEFFECTS = {
 	:secretPower => "FLAMEBURST",
 	:naturePower => :ERUPTION,
 	:mimicry => :FIRE,
+	# Abilities activated on Volcanic Top
+	:abilityActivate => {
+		:BLAZE      => { eor_after_eruption: true },  # Activated after eruption
+		:FLASHFIRE  => { eor_after_eruption: true },  # Activated after eruption
+		:GALEWINGS  => { during_strong_winds: true }, # Active during Strong Winds from Tailwind
+		:STEAMENGINE => { eor: true },                # Speed boost at end of turn
+	},
+	# Ability form changes
+	:abilityFormChanges => {
+		:EISCUE => {
+			:ICEFACE => { form: 1, show_ability: true, message: "{1}'s Ice Face melted!" }
+		}
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:SMOKESCREEN => { stages: 2, message: "The volcanic ash boosted the Smokescreen! {1}'s accuracy greatly fell!" },
+	},
 	:damageMods => {
 		1.5 => [:OMINOUSWIND, :SILVERWIND, :RAZORWIND, :ICYWIND, :GUST, :TWISTER, :SMOG, :CLEARSMOG, :PRECIPICEBLADES, :THUNDER, :SCALD, :STEAMERUPTION, :INFERNALPARADE],
 		1.3 => [:ERUPTION, :HEATWAVE, :MAGMASTORM, :LAVAPLUME],
@@ -1429,6 +1543,16 @@ FIELDEFFECTS = {
 	:mimicry => :ROCK,
 	:abilityMods => {
     :PUNKROCK => { multiplier: 1.5 },
+	},
+	# Abilities activated on cave field
+	:abilityActivate => {
+		:PUNKROCK => {},  # Sound moves 1.5x (passive, already checked via abilityMods)
+	},
+	# Ground-type moves can hit airborne Pokemon on cave field
+	:groundHitsAirborne => true,
+	# Stealth Rock damage doubled (handled in section for hazards)
+	:hazardMultiplier => {
+		:StealthRock => 2.0
 	},
 	:damageMods => {
 		1.5 => [:ROCKTOMB],

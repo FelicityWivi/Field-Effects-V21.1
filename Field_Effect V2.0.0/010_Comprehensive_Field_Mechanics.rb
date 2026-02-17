@@ -25,6 +25,8 @@ class Battle::Field
   attr_reader :weather_duration       # Extended weather duration for specific weather types
   attr_reader :item_effect_mods       # Item effect modifications on this field
   attr_reader :weather_field_change   # Field transitions triggered by weather at EOR
+  attr_reader :ground_hits_airborne   # Ground moves can hit airborne Pokemon
+  attr_reader :hazard_multiplier      # Entry hazard damage multipliers
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -47,6 +49,8 @@ class Battle::Field
     @weather_duration ||= {}
     @item_effect_mods ||= {}
     @weather_field_change ||= {}
+    @ground_hits_airborne ||= false
+    @hazard_multiplier ||= {}
   end
   
   # Called after initialization to register the no_charging effect
@@ -1184,6 +1188,859 @@ class Battle
 end
 
 #===============================================================================
+# 21. VOLCANIC TOP FIELD MECHANICS
+# Volcanic Top shares most mechanics with Volcanic field (Section 13)
+# Additional mechanics specific to Volcanic Top
+#===============================================================================
+
+VOLCANIC_TOP_IDS = %i[volcanictop].freeze
+
+# Tailwind - Lasts 6 turns and creates Strong Winds
+# NOTE: This needs manual implementation in Tailwind move code to check for volcanic top
+
+# Poison Gas - Causes badly poisoned status
+class Battle::Move::PoisonTarget
+  alias volcanictop_pbFailsAgainstTarget? pbFailsAgainstTarget?
+  
+  def pbFailsAgainstTarget?(user, target, show_message)
+    # On Volcanic Top, Poison Gas badly poisons
+    if @id == :POISONGAS && 
+       @battle.has_field? && 
+       VOLCANIC_TOP_IDS.include?(@battle.current_field.id)
+      @badly_poison = true
+    end
+    
+    volcanictop_pbFailsAgainstTarget?(user, target, show_message)
+  end
+  
+  alias volcanictop_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    if @badly_poison && 
+       @battle.has_field? && 
+       VOLCANIC_TOP_IDS.include?(@battle.current_field.id)
+      return target.pbInflictStatus(:POISON, 1, nil, user) ? 0 : -1
+    end
+    
+    volcanictop_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Outrage/Thrash/Petal Dance - Fatigue after single turn
+# Hook into the rampage continuation check
+class Battle::Battler
+  alias volcanictop_pbContinueAttack pbContinueAttack
+  
+  def pbContinueAttack
+    # On Volcanic Top, immediately end rampage moves
+    if @battle.has_field? && 
+       VOLCANIC_TOP_IDS.include?(@battle.current_field.id) &&
+       @effects[PBEffects::Outrage] > 0
+      @effects[PBEffects::Outrage] = 0
+      return false
+    end
+    
+    return volcanictop_pbContinueAttack
+  end
+end
+
+# Tailwind - Lasts 6 turns and creates Strong Winds on Volcanic Top
+class Battle::Move::StartUserSideDoubleSpeed
+  alias volcanictop_pbEffectGeneral pbEffectGeneral
+  
+  def pbEffectGeneral(user)
+    ret = volcanictop_pbEffectGeneral(user)
+    
+    # On Volcanic Top, Tailwind lasts 6 turns and creates Strong Winds
+    if @battle.has_field? && VOLCANIC_TOP_IDS.include?(@battle.current_field.id)
+      user.pbOwnSide.effects[PBEffects::Tailwind] = 6
+      # Start Strong Winds weather
+      @battle.pbStartWeather(user, :StrongWinds, true)
+    end
+    
+    return ret
+  end
+end
+
+# Gale Wings - Activated during Strong Winds (Tailwind on Volcanic Top)
+Battle::AbilityEffects::PriorityBracketChange.add(:GALEWINGS,
+  proc { |ability, battler, battle|
+    # Normal: +1 priority to Flying moves at full HP
+    # On Volcanic Top during Strong Winds: always active
+    if battle.has_field? && 
+       VOLCANIC_TOP_IDS.include?(battle.current_field.id) &&
+       battle.field.weather == :StrongWinds
+      next 1  # Always give priority
+    elsif battler.hp == battler.totalhp
+      next 1  # Normal condition
+    end
+    next 0
+  }
+)
+
+# Volcanic Eruption System
+# Triggered by specific moves and Desolate Land ability
+class Battle
+  attr_accessor :volcanic_eruption_triggered
+  
+  alias volcanictop_eruption_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    volcanictop_eruption_pbEndOfRoundPhase
+    
+    # Check for Desolate Land triggering eruption
+    if has_field? && VOLCANIC_TOP_IDS.include?(current_field.id)
+      allBattlers.each do |battler|
+        if battler.hasActiveAbility?(:DESOLATELAND) && field.weather == :HarshSun
+          trigger_volcanic_eruption
+          break
+        end
+      end
+    end
+  end
+  
+  def trigger_volcanic_eruption
+    return unless has_field? && VOLCANIC_TOP_IDS.include?(current_field.id)
+    
+    pbDisplay(_INTL("The volcano erupted!"))
+    
+    # Deal damage to all Pokemon based on Fire effectiveness
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      
+      # Check immunities
+      next if battler.pbHasType?(:FIRE)
+      next if battler.hasActiveAbility?([:MAGMAARMOR, :FLASHFIRE, :FLAREBOOST, :BLAZE, :FLAMEBODY,
+                                          :SOLIDROCK, :STURDY, :BATTLEARMOR, :SHELLARMOR, :WATERBUBBLE,
+                                          :MAGICGUARD, :WONDERGUARD, :PRISMARMOR])
+      next if battler.effects[PBEffects::AquaRing]
+      next if battler.pbOwnSide.effects[PBEffects::WideGuard]
+      
+      # Calculate damage based on Fire effectiveness
+      effectiveness = Effectiveness.calculate(:FIRE, battler.pbTypes(true))
+      damage_fraction = 16  # Default neutral (1/16 = 6.25%)
+      
+      if Effectiveness.super_effective?(effectiveness)
+        damage_fraction = 4   # Weak to Fire (1/4 = 25%)
+      elsif Effectiveness.not_very_effective?(effectiveness)
+        damage_fraction = 16  # Resistant (1/16 = 6.25%)
+      else
+        damage_fraction = 8   # Neutral (1/8 = 12.5%)
+      end
+      
+      # Double damage for Tar Shot
+      damage_fraction /= 2 if battler.effects[PBEffects::TarShot]
+      
+      damage = (battler.totalhp / damage_fraction).round
+      battler.pbReduceHP(damage, false)
+      pbDisplay(_INTL("{1} was damaged by the eruption!", battler.pbThis))
+      
+      # Wake up sleeping Pokemon (unless Soundproof)
+      if battler.status == :SLEEP && !battler.hasActiveAbility?(:SOUNDPROOF)
+        battler.pbCureStatus(false)
+        pbDisplay(_INTL("{1} woke up!", battler.pbThis))
+      end
+    end
+    
+    # Clear hazards and Leech Seed
+    eachSide do |side|
+      side.effects[PBEffects::StealthRock] = false
+      side.effects[PBEffects::Spikes] = 0
+      side.effects[PBEffects::ToxicSpikes] = 0
+      side.effects[PBEffects::StickyWeb] = false
+    end
+    allBattlers.each do |battler|
+      battler.effects[PBEffects::LeechSeed] = -1
+    end
+    pbDisplay(_INTL("The eruption cleared the field!"))
+    
+    # Trigger post-eruption ability effects
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      
+      # Magma Armor - Raise Defense and Special Defense
+      if battler.hasActiveAbility?(:MAGMAARMOR)
+        battler.pbRaiseStatStageByAbility(:DEFENSE, 1, battler)
+        battler.pbRaiseStatStageByAbility(:SPECIAL_DEFENSE, 1, battler)
+      end
+      
+      # Flare Boost - Raise Special Attack
+      if battler.hasActiveAbility?(:FLAREBOOST)
+        battler.pbRaiseStatStageByAbility(:SPECIAL_ATTACK, 1, battler)
+      end
+      
+      # Flash Fire - Activate
+      if battler.hasActiveAbility?(:FLASHFIRE) && !battler.effects[PBEffects::FlashFire]
+        pbShowAbilitySplash(battler)
+        battler.effects[PBEffects::FlashFire] = true
+        pbDisplay(_INTL("{1} is being boosted by the eruption!", battler.pbThis))
+        pbHideAbilitySplash(battler)
+      end
+      
+      # Blaze - Already passive, just show message
+      if battler.hasActiveAbility?(:BLAZE) && !@blaze_eruption_shown
+        pbShowAbilitySplash(battler)
+        pbDisplay(_INTL("{1}'s Blaze is activated by the heat!", battler.pbThis))
+        pbHideAbilitySplash(battler)
+        @blaze_eruption_shown = true
+      end
+    end
+  end
+end
+
+# Hook eruption trigger into specific moves
+class Battle::Move
+  alias volcanictop_pbEffectAfterAllHits pbEffectAfterAllHits
+  
+  def pbEffectAfterAllHits(user, target)
+    volcanictop_pbEffectAfterAllHits(user, target)
+    
+    # Check if this move triggers eruption on Volcanic Top
+    if @battle.has_field? && 
+       VOLCANIC_TOP_IDS.include?(@battle.current_field.id) &&
+       [:BULLDOZE, :EARTHQUAKE, :MAGNITUDE, :ERUPTION, :PRECIPICEBLADES, 
+        :LAVAPLUME, :EARTHPOWER, :FEVERPITCH, :MAGMADRIFT].include?(@id)
+      @battle.trigger_volcanic_eruption
+    end
+  end
+end
+
+#===============================================================================
+# 20. MISTY TERRAIN MECHANICS
+# Hardcoded ability and move effects specific to Misty Terrain
+#===============================================================================
+
+MISTY_TERRAIN_IDS = %i[misty].freeze
+
+# Fairy-type Sp.Def 1.5x - This is a field effect, not an ability
+# Hook into damage calculation for all Fairy-types on Misty Terrain
+class Battle::Move
+  alias misty_fairy_spdef_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    misty_fairy_spdef_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Fairy-types get 1.5x Sp.Def on Misty Terrain
+    return unless @battle.has_field? && MISTY_TERRAIN_IDS.include?(@battle.current_field.id)
+    return unless target.pbHasType?(:FAIRY)
+    return unless specialMove?(type)
+    
+    # Boost Special Defense (reduce special damage)
+    multipliers[:final_damage_multiplier] /= 1.5
+  end
+end
+
+# Marvel Scale - Always activated (Defense 1.5x)
+Battle::AbilityEffects::DamageCalcFromTarget.add(:MARVELSCALE,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    # On Misty Terrain, always active
+    if target.battle.has_field? && MISTY_TERRAIN_IDS.include?(target.battle.current_field.id)
+      next if !move.physicalMove?(type)
+      mults[:defense_multiplier] *= 1.5
+    elsif target.status != :NONE  # Normal condition
+      next if !move.physicalMove?(type)
+      mults[:defense_multiplier] *= 1.5
+    end
+  }
+)
+
+# Dry Skin - Heals 1/16 HP at end of turn
+Battle::AbilityEffects::EndOfRoundHealing.add(:DRYSKIN,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !MISTY_TERRAIN_IDS.include?(battle.current_field.id)
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Pastel Veil - Halves Poison damage for user and allies
+Battle::AbilityEffects::DamageCalcFromTarget.add(:PASTELVEIL,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !target.battle.has_field? || !MISTY_TERRAIN_IDS.include?(target.battle.current_field.id)
+    next if type != :POISON
+    mults[:final_damage_multiplier] /= 2.0
+  }
+)
+
+# Soul Heart - Additionally boosts Sp.Def on use
+# Soul Heart triggers when any Pokemon faints
+# In v21.1, we need to hook the faint event differently
+# Soul Heart base effect already exists, we just need to add Sp.Def boost
+# Hook into the general faint handling
+class Battle::Battler
+  alias misty_soulheart_pbFaint pbFaint
+  
+  def pbFaint(showMessage = true)
+    # Store if any battlers have Soul Heart before fainting
+    soulheart_battlers = []
+    if @battle.has_field? && MISTY_TERRAIN_IDS.include?(@battle.current_field.id)
+      @battle.allBattlers.each do |b|
+        next if b.fainted? || b.index == @index
+        soulheart_battlers << b if b.hasActiveAbility?(:SOULHEART)
+      end
+    end
+    
+    # Call original faint (this triggers Soul Heart's Sp.Atk boost)
+    ret = misty_soulheart_pbFaint(showMessage)
+    
+    # On Misty Terrain, also boost Sp.Def for Soul Heart users
+    soulheart_battlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.pbCanRaiseStatStage?(:SPECIAL_DEFENSE, battler, nil)
+      battler.pbRaiseStatStage(:SPECIAL_DEFENSE, 1, battler, false)
+    end
+    
+    return ret
+  end
+end
+
+# Wish - Restores 75% instead of 50% on Misty Terrain
+# Hook into battler's wish healing
+class Battle::Battler
+  alias misty_wish_pbRecoverHP pbRecoverHP
+  
+  def pbRecoverHP(amt, anim = true)
+    # Check if this is Wish healing on Misty Terrain
+    if @effects[PBEffects::Wish] > 0 &&
+       @battle.has_field? && 
+       MISTY_TERRAIN_IDS.include?(@battle.current_field.id)
+      # Wish heals 50% normally, boost to 75%
+      # So multiply by 1.5
+      amt = (amt * 1.5).round
+    end
+    
+    misty_wish_pbRecoverHP(amt, anim)
+  end
+end
+
+# Aqua Ring - Restores 1/8 instead of 1/16 on Misty Terrain
+# Chain onto the Grassy Terrain EOR hook
+class Battle
+  alias misty_aquaring_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    # Call previous in chain (could be grassy_ingrain_pbEndOfRoundPhase)
+    misty_aquaring_pbEndOfRoundPhase
+    return unless has_field? && MISTY_TERRAIN_IDS.include?(current_field.id)
+    
+    # Aqua Ring normally heals 1/16, boost to 1/8
+    # Base healing already happened, so add extra 1/16
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::AquaRing]
+      next if battler.hp == battler.totalhp
+      
+      extra_heal = battler.totalhp / 16
+      battler.pbRecoverHP(extra_heal)
+    end
+  end
+end
+
+#===============================================================================
+# 19. GRASSY TERRAIN MECHANICS
+# Hardcoded ability and move effects specific to Grassy Terrain
+#===============================================================================
+
+GRASSY_TERRAIN_IDS = %i[grassy].freeze
+
+# Grass Pelt - Defense 1.5x
+Battle::AbilityEffects::DamageCalcFromTarget.add(:GRASSPELT,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !target.battle.has_field? || !GRASSY_TERRAIN_IDS.include?(target.battle.current_field.id)
+    next if !move.physicalMove?(type)
+    mults[:defense_multiplier] *= 1.5
+  }
+)
+
+# Leaf Guard - Always activated (prevents status)
+Battle::AbilityEffects::StatusImmunity.add(:LEAFGUARD,
+  proc { |ability, battler, status|
+    next true if battler.battle.has_field? && GRASSY_TERRAIN_IDS.include?(battler.battle.current_field.id)
+    next false
+  }
+)
+
+# Overgrow - Always activated (Grass moves 1.5x)
+Battle::AbilityEffects::DamageCalcFromUser.add(:OVERGROW,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if type != :GRASS
+    if user.battle.has_field? && GRASSY_TERRAIN_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 1.5
+    elsif user.hp <= user.totalhp / 3  # Normal Overgrow condition
+      mults[:attack_multiplier] *= 1.5
+    end
+  }
+)
+
+# Sap Sipper - Heals 1/16 HP at end of turn
+Battle::AbilityEffects::EndOfRoundHealing.add(:SAPSIPPER,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !GRASSY_TERRAIN_IDS.include?(battle.current_field.id)
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Harvest - Always activates at end of turn on Grassy Terrain
+# Hook into Harvest ability effect
+Battle::AbilityEffects::EndOfRoundEffect.add(:HARVEST,
+  proc { |ability, battler, battle|
+    next if !battler.item.nil?
+    next if battler.recycleItem.nil?
+    # On Grassy Terrain, always activate (100% chance)
+    # Otherwise 50% chance (or 100% in sun)
+    activate = false
+    if battle.has_field? && GRASSY_TERRAIN_IDS.include?(battle.current_field.id)
+      activate = true
+    elsif [:Sun, :HarshSun].include?(battler.effectiveWeather)
+      activate = true
+    elsif rand(100) < 50
+      activate = true
+    end
+    
+    next if !activate
+    battle.pbShowAbilitySplash(battler, true)
+    battler.item = battler.recycleItem
+    battler.setRecycleItem(nil)
+    battler.setInitialItem(battler.item)
+    battle.pbDisplay(_INTL("{1} harvested one {2}!", battler.pbThis, battler.itemName))
+    battle.pbHideAbilitySplash(battler)
+  }
+)
+
+# Cotton Down - Lowers Speed by 2 stages on Grassy Terrain
+Battle::AbilityEffects::OnBeingHit.add(:COTTONDOWN,
+  proc { |ability, user, target, move, battle|
+    next if !move.damagingMove?
+    stages = 1  # Default
+    if battle.has_field? && GRASSY_TERRAIN_IDS.include?(battle.current_field.id)
+      stages = 2
+    end
+    battle.pbShowAbilitySplash(target)
+    battle.allOtherBattlers(target.index).each do |b|
+      b.pbLowerStatStageByAbility(:SPEED, stages, target, false, false)
+    end
+    battle.pbHideAbilitySplash(target)
+  }
+)
+
+# Drain moves - Heal 75% of damage dealt on Grassy Terrain
+# Hook into drain move healing
+GRASSY_DRAIN_MOVES = [:ABSORB, :MEGADRAIN, :GIGADRAIN, :HORNLEECH, :DRAININGKISS, :DRAINPUNCH, :LEECHLIFE, :OBLIVIONWING, :PARABOLICCHARGE].freeze
+
+class Battle::Move
+  alias grassy_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    ret = grassy_pbEffectAgainstTarget(user, target)
+    
+    # Check if this is a drain move on Grassy Terrain
+    if GRASSY_DRAIN_MOVES.include?(@id) && 
+       @battle.has_field? && 
+       GRASSY_TERRAIN_IDS.include?(@battle.current_field.id)
+      # Drain moves normally heal 50% - boost to 75%
+      # The base healing already happened, so add extra 25%
+      if user.damageState.hpLost > 0
+        extra_heal = (user.damageState.hpLost / 4.0).round
+        user.pbRecoverHP(extra_heal) if extra_heal > 0
+      end
+    end
+    
+    return ret
+  end
+end
+
+# Floral Healing and Synthesis - Restore 75% on Grassy Terrain
+# Hook into the move's healing calculation
+# These moves have function code "HealTargetDependingOnWeather"
+class Battle::Move
+  alias grassy_healing_pbMoveFailed? pbMoveFailed?
+  
+  def pbMoveFailed?(user, targets)
+    ret = grassy_healing_pbMoveFailed?(user, targets)
+    
+    # Store for healing amount calculation if this is Synthesis/Floral Healing
+    if [:SYNTHESIS, :FLORALHEALING, :MORNINGSUN, :MOONLIGHT].include?(@id) &&
+       @battle.has_field? && 
+       GRASSY_TERRAIN_IDS.include?(@battle.current_field.id)
+      @grassy_terrain_75_heal = true
+    end
+    
+    return ret
+  end
+end
+
+# Hook the actual healing
+class Battle::Battler
+  alias grassy_healing_pbRecoverHP pbRecoverHP
+  
+  def pbRecoverHP(amt, anim = true)
+    # Check if this is a Grassy Terrain boosted heal
+    # This is triggered during Synthesis/Floral Healing execution
+    if @battle.respond_to?(:pbGetMoveIndexFromID)
+      current_move = @battle.choices[@index] ? @battle.choices[@index][2] : nil
+      if current_move && 
+         [:SYNTHESIS, :FLORALHEALING, :MORNINGSUN, :MOONLIGHT].include?(current_move.id) &&
+         @battle.has_field? && 
+         GRASSY_TERRAIN_IDS.include?(@battle.current_field.id)
+        # Change heal to 75%
+        amt = (@totalhp * 3 / 4.0).round
+      end
+    end
+    
+    grassy_healing_pbRecoverHP(amt, anim)
+  end
+end
+
+# Leech Seed - Recovery increased by 30% on Grassy Terrain
+class Battle
+  alias grassy_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    # Store if on grassy terrain for Leech Seed check
+    @grassy_leech_seed_boost = has_field? && GRASSY_TERRAIN_IDS.include?(current_field.id)
+    grassy_pbEndOfRoundPhase
+    @grassy_leech_seed_boost = nil
+  end
+end
+
+class Battle::Battler
+  alias grassy_pbReduceHP pbReduceHP
+  
+  def pbReduceHP(amt, anim = false, registerDamage = true, anyAnim = true)
+    # Check if this is Leech Seed damage with grassy boost
+    if @battle.instance_variable_get(:@grassy_leech_seed_boost) && 
+       @effects[PBEffects::LeechSeed] >= 0
+      # Boost damage by 30%
+      amt = (amt * 1.3).round
+    end
+    grassy_pbReduceHP(amt, anim, registerDamage, anyAnim)
+  end
+end
+
+# Grassy Glide - +1 priority on Grassy Terrain
+class Battle::Move::HigherPriorityInGrassyTerrain
+  alias grassy_pbPriority pbPriority
+  
+  def pbPriority(user)
+    ret = grassy_pbPriority(user)
+    # On Grassy Terrain (our field), get +1 priority
+    if @battle.has_field? && GRASSY_TERRAIN_IDS.include?(@battle.current_field.id) && user.grounded?
+      ret += 1
+    end
+    return ret
+  end
+end
+
+# Nature's Madness - Deals 75% HP damage on Grassy Terrain
+class Battle::Move::LowerTargetHPToUserHP
+  alias grassy_pbFailsAgainstTarget? pbFailsAgainstTarget?
+  
+  def pbFailsAgainstTarget?(user, target, show_message)
+    ret = grassy_pbFailsAgainstTarget?(user, target, show_message)
+    # Store for damage calculation
+    @grassy_terrain_boost = @battle.has_field? && GRASSY_TERRAIN_IDS.include?(@battle.current_field.id)
+    return ret
+  end
+  
+  alias grassy_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    if @grassy_terrain_boost
+      # Deal 75% HP damage instead of 50%
+      dmg = (target.hp * 3 / 4.0).round
+      target.pbReduceHP(dmg, false)
+      return
+    end
+    grassy_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Snap Trap - Deals 1/6 HP damage per turn on Grassy Terrain
+# This is handled by PBEffects::Trapping - needs to check in EOR damage
+class Battle
+  alias grassy_trap_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    grassy_trap_pbEndOfRoundPhase
+    return unless has_field? && GRASSY_TERRAIN_IDS.include?(current_field.id)
+    
+    # Check for Snap Trap - boost damage from 1/8 to 1/6
+    # This already ran in the original EOR, so we apply extra damage
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Trapping] > 0
+      
+      trapping_move = nil
+      if PBEffects.const_defined?(:TrappingMove)
+        trapping_move = battler.effects[PBEffects::TrappingMove]
+      end
+      next unless trapping_move == :SNAPTRAP
+      
+      # Normal trap damage is 1/8, we want 1/6 total
+      # So add extra (1/6 - 1/8) = 1/24
+      extra_dmg = battler.totalhp / 24
+      battler.pbReduceHP(extra_dmg, false) if extra_dmg > 0
+    end
+  end
+end
+
+# Ingrain - Heals 1/8 instead of 1/16 on Grassy Terrain
+class Battle
+  alias grassy_ingrain_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    grassy_ingrain_pbEndOfRoundPhase
+    return unless has_field? && GRASSY_TERRAIN_IDS.include?(current_field.id)
+    
+    # Ingrain normally heals 1/16, boost to 1/8
+    # Base healing already happened, so add extra 1/16
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Ingrain]
+      next if battler.hp == battler.totalhp
+      
+      extra_heal = battler.totalhp / 16
+      battler.pbRecoverHP(extra_heal)
+    end
+  end
+end
+
+# NOTE: Desolate Land field transition needs to be in abilityFieldChange or similar system
+
+#===============================================================================
+# 18. ELECTRIC TERRAIN MECHANICS
+# Hardcoded ability effects specific to Electric Terrain
+#===============================================================================
+
+ELECTRIC_TERRAIN_IDS = %i[electerrain].freeze
+
+# Plus - Special Attack 1.5x (even without Minus present)
+# In v21.1, stat boosts are applied in damage calculation
+Battle::AbilityEffects::DamageCalcFromUser.add(:PLUS,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !user.battle.has_field? || !ELECTRIC_TERRAIN_IDS.include?(user.battle.current_field.id)
+    next if !move.specialMove?(type)
+    mults[:attack_multiplier] *= 1.5
+  }
+)
+
+# Minus - Special Attack 1.5x (even without Plus present)
+Battle::AbilityEffects::DamageCalcFromUser.add(:MINUS,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !user.battle.has_field? || !ELECTRIC_TERRAIN_IDS.include?(user.battle.current_field.id)
+    next if !move.specialMove?(type)
+    mults[:attack_multiplier] *= 1.5
+  }
+)
+
+# Surge Surfer - Speed doubled
+Battle::AbilityEffects::SpeedCalc.add(:SURGESURFER,
+  proc { |ability, battler, mult|
+    if battler.battle.has_field? && ELECTRIC_TERRAIN_IDS.include?(battler.battle.current_field.id)
+      mult *= 2
+    end
+    next mult
+  }
+)
+
+# Quick Feet - Always activated (Speed 1.5x)
+Battle::AbilityEffects::SpeedCalc.add(:QUICKFEET,
+  proc { |ability, battler, mult|
+    if battler.battle.has_field? && ELECTRIC_TERRAIN_IDS.include?(battler.battle.current_field.id)
+      mult *= 1.5
+    end
+    next mult
+  }
+)
+
+# Volt Absorb - Heals 1/16 HP at end of turn
+Battle::AbilityEffects::EndOfRoundHealing.add(:VOLTABSORB,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !ELECTRIC_TERRAIN_IDS.include?(battle.current_field.id)
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Motor Drive - Raises Speed by 1 stage at end of turn
+# Add to EOR_ABILITY_HANDLERS for Electric Terrain
+Battle::Field::EOR_ABILITY_HANDLERS[:MOTORDRIVE] = proc { |battler, battle, field|
+  next unless battler.hasActiveAbility?(:MOTORDRIVE)
+  next unless battler.pbCanRaiseStatStage?(:SPEED, battler, nil)
+  battler.pbRaiseStatStageByAbility(:SPEED, 1, battler)
+}
+
+# Comatose - Disabled on Electric Terrain
+# Patch Comatose ability to not apply on Electric Terrain
+Battle::AbilityEffects::StatusImmunity.add(:COMATOSE,
+  proc { |ability, battler, status|
+    # Comatose is disabled on Electric Terrain
+    next false if battler.battle.has_field? && ELECTRIC_TERRAIN_IDS.include?(battler.battle.current_field.id)
+    next true if status == :SLEEP
+    next false
+  }
+)
+
+# Gulp Missile - Always picks up Pikachu on Electric Terrain
+# Hook into form change when using Surf/Dive
+Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE,
+  proc { |ability, user, target, move, battle|
+    next if target.fainted? || target.effects[PBEffects::Transform]
+    next if !target.isSpecies?(:CRAMORANT)
+    next unless [:SURF, :DIVE].include?(move.id)
+    
+    # On Electric Terrain, always pick up Pikachu (form 2)
+    if battle.has_field? && ELECTRIC_TERRAIN_IDS.include?(battle.current_field.id)
+      target.pbChangeForm(2, _INTL("{1} caught a Pikachu!", target.pbThis))
+    else
+      # Normal behavior - form based on HP
+      newForm = (target.hp > target.totalhp / 2) ? 1 : 2
+      target.pbChangeForm(newForm, _INTL("{1} caught something!", target.pbThis))
+    end
+  }
+)
+
+# Slow Start - Ends twice as fast (2 turns instead of 5)
+# Hook into the Slow Start counter decrement at end of round
+# Add to EOR_ABILITY_HANDLERS
+Battle::Field::EOR_ABILITY_HANDLERS[:SLOWSTART] = proc { |battler, battle, field|
+  next unless battler.hasActiveAbility?(:SLOWSTART)
+  next unless battler.effects[PBEffects::SlowStart] > 0
+  # Normal decrement already happened, decrement one extra time
+  battler.effects[PBEffects::SlowStart] -= 1
+  if battler.effects[PBEffects::SlowStart] == 0
+    battle.pbDisplay(_INTL("{1} finally got its act together!", battler.pbThis))
+  end
+}
+
+# Register Slow Start for Electric Terrain
+# (This will be picked up by register_ability_activation if SLOWSTART is in abilityActivate)
+
+# Static - 60% chance instead of 30%
+Battle::AbilityEffects::OnBeingHit.add(:STATIC,
+  proc { |ability, user, target, move, battle|
+    next if !move.pbContactMove?(user)
+    next if user.fainted?
+    
+    # 60% chance on Electric Terrain, 30% normally
+    chance = 30
+    if battle.has_field? && ELECTRIC_TERRAIN_IDS.include?(battle.current_field.id)
+      chance = 60
+    end
+    
+    next if rand(100) >= chance
+    next if !user.pbCanInflictStatus?(:PARALYSIS, target, false)
+    battle.pbShowAbilitySplash(target)
+    msg = nil
+    if !Battle::Scene::USE_ABILITY_SPLASH
+      msg = _INTL("{1}'s {2} paralyzed {3}!", target.pbThis, target.abilityName, user.pbThis(true))
+    end
+    user.pbInflictStatus(:PARALYSIS, 0, msg, target)
+    battle.pbHideAbilitySplash(target)
+  }
+)
+
+# Teravolt - Electric moves deal neutral damage to Ground-types on Electric Terrain
+# Hook into damage calculation
+class Battle::Move
+  alias electric_teravolt_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    electric_teravolt_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Teravolt makes Electric moves neutral to Ground on Electric Terrain
+    if user.hasActiveAbility?(:TERAVOLT) &&
+       type == :ELECTRIC &&
+       target.pbHasType?(:GROUND) &&
+       @battle.has_field? &&
+       ELECTRIC_TERRAIN_IDS.include?(@battle.current_field.id)
+      # Override the 0x Ground immunity to be 1x neutral
+      multipliers[:base_damage_multiplier] *= 2  # Counteract the 0.5x from immunity
+    end
+  end
+end
+
+# Transistor - Reduces Ground-type move damage by 0.5x
+Battle::AbilityEffects::DamageCalcFromTarget.add(:TRANSISTOR,
+  proc { |ability, user, target, move, mults, power, type|
+    next if !target.battle.has_field? || !ELECTRIC_TERRAIN_IDS.include?(target.battle.current_field.id)
+    if type == :GROUND
+      mults[:final_damage_multiplier] /= 2.0
+    end
+  }
+)
+
+#===============================================================================
+# 17. CAVE FIELD MECHANICS
+# Ground moves hit airborne Pokemon
+# Stealth Rock damage doubled (needs manual implementation)
+#===============================================================================
+
+# Ground-type moves can hit airborne Pokemon on cave field
+# Hook into type effectiveness calculation
+class Battle::Move
+  alias cave_ground_pbCalcTypeMod pbCalcTypeMod
+  
+  def pbCalcTypeMod(moveType, user, target)
+    # Call original first
+    typeMod = cave_ground_pbCalcTypeMod(moveType, user, target)
+    
+    # On cave field, Ground moves ignore Flying immunity from being airborne
+    if moveType == :GROUND && 
+       @battle.has_field? && 
+       @battle.current_field.id == :cave &&
+       target.airborne?
+      
+      field_data = @battle.current_field
+      if field_data.respond_to?(:ground_hits_airborne) && field_data.ground_hits_airborne
+        # Recalculate type effectiveness ignoring the airborne immunity
+        # Just calculate based on actual types
+        typeMod = Effectiveness::NORMAL_EFFECTIVE_ONE
+        if target.pbHasType?(:FLYING)
+          typeMod = Effectiveness.calculate(moveType, :FLYING)
+        end
+        target.pbTypes(true).each do |type|
+          next if type == :FLYING  # Already handled
+          mod = Effectiveness.calculate(moveType, type)
+          typeMod *= mod
+        end
+      end
+    end
+    
+    return typeMod
+  end
+end
+
+# NOTE: Stealth Rock doubled damage (:hazardMultiplier key) needs manual implementation
+# in the base game's entry hazard damage code (Battle::Battler#pbCheckEntryHazards or similar)
+# by checking if @battle.has_field? && @battle.current_field.hazard_multiplier[:StealthRock]
+
+#===============================================================================
 # 16. WEATHER-BASED FIELD TRANSITIONS
 # Fields can transition to other fields based on active weather at end of round
 #===============================================================================
@@ -1317,6 +2174,7 @@ class Battle::Field
     @status_immunity.each do |status, config|
       types = config[:types] || []
       abilities = config[:abilities] || []
+      grounded = config[:grounded] || false
       message = config[:message]
       
       existing = @effects[:status_immunity] || proc { |*args| false }
@@ -1328,11 +2186,16 @@ class Battle::Field
         # Check if this status is prevented
         next false unless new_status == status
         
+        # Check grounded condition if required
+        if grounded
+          next false unless battler.grounded?
+        end
+        
         # Check type immunity
         if types.any? && battler.pbHasType?(*types)
           if show_messages
-            msg = message || _INTL("{1} is focused and cannot be confused!", battler.pbThis)
-            @battle.pbDisplay(msg)
+            msg = message || _INTL("{1} cannot be affected!", battler.pbThis)
+            @battle.pbDisplay(msg.gsub("{1}", battler.pbThis))
           end
           next true
         end
@@ -1340,8 +2203,17 @@ class Battle::Field
         # Check ability immunity
         if abilities.any? && battler.hasActiveAbility?(abilities)
           if show_messages
-            msg = message || _INTL("{1} is focused and cannot be confused!", battler.pbThis)
-            @battle.pbDisplay(msg)
+            msg = message || _INTL("{1} cannot be affected!", battler.pbThis)
+            @battle.pbDisplay(msg.gsub("{1}", battler.pbThis))
+          end
+          next true
+        end
+        
+        # If grounded condition but no type/ability check, apply to all grounded
+        if grounded && !types.any? && !abilities.any?
+          if show_messages
+            msg = message || _INTL("{1} cannot be affected!", battler.pbThis)
+            @battle.pbDisplay(msg.gsub("{1}", battler.pbThis))
           end
           next true
         end
