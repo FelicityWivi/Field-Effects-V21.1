@@ -242,6 +242,14 @@ class FieldTextParser
           end
         end
         
+        # Parse weather-based field transitions
+        if data[:weatherFieldChange]
+          @weather_field_change = data[:weatherFieldChange]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded weatherFieldChange for #{@name}: #{@weather_field_change.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect

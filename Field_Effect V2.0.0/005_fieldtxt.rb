@@ -337,11 +337,6 @@ FIELDEFFECTS = {
         stages: 1, 
         message: "{1}'s Magma Armor hardened its body!" 
       },
-      :STEAMENGINE => { 
-        stat: :SPEED, 
-        stages: 1, 
-        message: "{1}'s Steam Engine boosted its speed!" 
-      },
     },
     :abilityFormChanges => {
       :EISCUE => {
@@ -352,9 +347,10 @@ FIELDEFFECTS = {
       :SMOKESCREEN => { stages: 2, message: "The {2} boosted the Smokescreen! {1}'s accuracy greatly fell!" },
     },
     :abilityActivate => {
-      :BLAZE      => {},             # passive: fire moves get 1.5x (handled by existing Blaze check)
-      :FLAREBOOST => {},             # passive: fire moves get 1.5x when burned
-      :FLASHFIRE  => { eor: true, grounded: true },  # EOR: activates Flash Fire boost if grounded
+      :BLAZE       => {},             # passive: fire moves get 1.5x (handled by existing Blaze check)
+      :FLAREBOOST  => {},             # passive: fire moves get 1.5x when burned
+      :FLASHFIRE   => { eor: true, grounded: true },  # EOR: activates Flash Fire boost if grounded
+      :STEAMENGINE => { eor: true },  # EOR: boosts Speed by 1 stage at end of turn
     },
 	:healthChanges => [
     {
@@ -412,6 +408,16 @@ FIELDEFFECTS = {
 	:changeCondition => {},
 	:fieldChange => {
 		:CAVE => [:WHIRLWIND, :GUST, :RAZORWIND, :DEFOG, :HURRICANE, :TWISTER, :TAILWIND, :SUPERSONICSKYSTRIKE, :WATERSPORT, :SURF, :MUDDYWATER, :WATERSPOUT, :WATERPLEDGE, :SPARKLINGARIA, :SLUDGEWAVE, :SANDTOMB, :CONTINENTALCRUSH, :HYDROVORTEX, :OCEANICOPERETTA],
+	},
+	# Weather-based field transitions at end of turn
+	:weatherFieldChange => {
+		:CAVE => {
+			weather: [:Rain, :Sandstorm],
+			messages: {
+				:Rain => "The rain snuffed out the flame!",
+				:Sandstorm => "The sand snuffed out the flame!"
+			}
+		}
 	},
 	:dontChangeBackup => [],
 	:changeMessage => {
@@ -779,7 +785,18 @@ FIELDEFFECTS = {
 		"The hot water melted the ice!" => [:SCALD, :STEAMERUPTION],
 	},
 	:statusMods => [:HAIL, :AURORAVEIL],
-    :statusDamageMods => {
+	# Weather duration - Hail lasts 8 turns
+	:weatherDuration => {
+		:Hail => 8,
+		:Snow => 8
+	},
+	# Abilities activated on icy field
+	:abilityActivate => {
+		:ICEBODY    => {},  # Restores 1/16 HP at end of turn in hail/snow (passive)
+		:SLUSHRUSH  => {},  # Speed doubled in hail/snow (passive)
+		:SNOWCLOAK  => {}   # Evasion boosted in hail/snow (passive)
+	},
+	:statusDamageMods => {
     :BURN => 0.5,     # Halves burn damage (1/16 -> 1/32)
     },
     :moveStatBoosts => [
@@ -1248,6 +1265,7 @@ FIELDEFFECTS = {
 	# Sand Spit: lowers all foes' accuracy by 1 stage on activation (hardcoded in section 14)
 	# Item effect modifications
 	# Shell Bell restores 25% of damage dealt instead of 12.5% (1/8)
+	# NOTE: Requires manual implementation in base game's Shell Bell code (Battle::Move#pbEffectAfterAllHits)
 	:itemEffectMods => {
 		:SHELLBELL => { heal_percent: 0.25 }
 	},

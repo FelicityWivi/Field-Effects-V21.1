@@ -24,6 +24,7 @@ class Battle::Field
   attr_reader :status_immunity        # Status conditions prevented by type/ability on this field
   attr_reader :weather_duration       # Extended weather duration for specific weather types
   attr_reader :item_effect_mods       # Item effect modifications on this field
+  attr_reader :weather_field_change   # Field transitions triggered by weather at EOR
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -45,6 +46,7 @@ class Battle::Field
     @status_immunity ||= {}
     @weather_duration ||= {}
     @item_effect_mods ||= {}
+    @weather_field_change ||= {}
   end
   
   # Called after initialization to register the no_charging effect
@@ -763,6 +765,11 @@ class Battle::Field
       battler.effects[PBEffects::FlashFire] = true
       battle.pbDisplay(_INTL("{1} is being boosted by the flames!", battler.pbThis))
       battle.pbHideAbilitySplash(battler)
+    },
+    :STEAMENGINE => proc { |battler, battle, field|
+      next unless battler.hasActiveAbility?(:STEAMENGINE)
+      next unless battler.pbCanRaiseStatStage?(:SPEED, battler, nil)
+      battler.pbRaiseStatStageByAbility(:SPEED, 1, battler)
     }
   }
   
@@ -1177,6 +1184,49 @@ class Battle
 end
 
 #===============================================================================
+# 16. WEATHER-BASED FIELD TRANSITIONS
+# Fields can transition to other fields based on active weather at end of round
+#===============================================================================
+
+class Battle
+  alias weather_field_change_pbEOREndWeather pbEOREndWeather
+  
+  def pbEOREndWeather(priority)
+    # Call original first
+    weather_field_change_pbEOREndWeather(priority)
+    
+    # Check for weather-based field transitions
+    return unless has_field?
+    field_data = current_field
+    return unless field_data.respond_to?(:weather_field_change)
+    return unless field_data.weather_field_change && field_data.weather_field_change.any?
+    
+    current_weather = @field.weather
+    return if current_weather == :None
+    
+    # Check each potential field transition
+    field_data.weather_field_change.each do |new_field, config|
+      weather_list = config[:weather] || []
+      next unless weather_list.include?(current_weather)
+      
+      # Get the message for this specific weather
+      messages = config[:messages] || {}
+      message = messages[current_weather]
+      
+      # Trigger field change
+      pbDisplay(message) if message
+      pbChangeBattleField(new_field, message.nil?)
+      
+      if $DEBUG
+        Console.echo_li("[WEATHER FIELD CHANGE] #{current_weather} changed #{field_data.name} -> #{new_field}")
+      end
+      
+      break # Only one transition per turn
+    end
+  end
+end
+
+#===============================================================================
 # 15. WEATHER DURATION EXTENSION
 # Allows fields to extend the duration of specific weather types
 # Compatible with both base game weather and custom weather plugin
@@ -1253,31 +1303,10 @@ end
 
 BEACH_FIELD_IDS = %i[beach].freeze
 
-# SHELL BELL - Restore 25% of damage dealt instead of 12.5% (1/8)
-# Shell Bell normally restores 1/8 of damage dealt. On beach field it restores 1/4.
-Battle::ItemEffects::AfterMoveUse.add(:SHELLBELL,
-  proc { |item, battler, user, move, switched_battlers, battle|
-    next if !user || !user.index
-    next if !user.damageState.totalHPLost || user.damageState.totalHPLost <= 0
-    next if !user.canHeal?
-    
-    # Calculate heal amount based on field
-    heal_fraction = 8.0  # Default: 1/8
-    if battle.has_field? && BEACH_FIELD_IDS.include?(battle.current_field.id)
-      field_data = battle.current_field
-      if field_data.respond_to?(:item_effect_mods) && 
-         field_data.item_effect_mods &&
-         field_data.item_effect_mods[:SHELLBELL]
-        heal_percent = field_data.item_effect_mods[:SHELLBELL][:heal_percent] || 0.125
-        heal_fraction = 1.0 / heal_percent
-      end
-    end
-    
-    # Apply healing
-    user.pbRecoverHP(user.damageState.totalHPLost / heal_fraction.to_i)
-    battle.pbDisplay(_INTL("{1} restored a little HP using its {2}!", user.pbThis, user.itemName))
-  }
-)
+# NOTE: Shell Bell boost (25% instead of 12.5%) needs to be implemented in the base
+# game's Shell Bell item code by checking for beach field. The item effect happens
+# in Battle::Move#pbEffectAfterAllHits which checks for Shell Bell item and heals
+# based on totalHPLost. To implement the beach field boost, add a field check there.
 
 # STATUS IMMUNITY - Prevent confusion on Fighting-types and Inner Focus
 # Hooks into the existing :status_immunity field effect
@@ -1641,6 +1670,28 @@ Battle::AbilityEffects::AccuracyCalcFromTarget.add(:SNOWCLOAK,
     end
   }
 )
+
+# Ice-type Defense boost during Hail on Icy field
+# Ice-types get 1.5x Defense when Hail/Snow is active
+# Hook into damage calculation for the target
+class Battle::Move
+  alias icy_ice_defense_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    icy_ice_defense_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Check for icy field + Ice-type + Hail/Snow
+    return unless @battle.has_field? && @battle.current_field.id == :icy
+    return unless target.pbHasType?(:ICE)
+    weather = target.effectiveWeather
+    return unless [:Hail, :Snow].include?(weather)
+    
+    # Boost Defense by 1.5x (equivalent to reducing physical damage)
+    if physicalMove?(type)
+      multipliers[:final_damage_multiplier] /= 1.5
+    end
+  end
+end
 
 # Liquid Voice - Makes sound moves Ice-type on Icy field
 Battle::AbilityEffects::ModifyMoveBaseType.copy(:LIQUIDVOICE,
