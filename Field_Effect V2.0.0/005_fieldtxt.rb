@@ -349,7 +349,12 @@ FIELDEFFECTS = {
       }
     },
     :moveStatStageMods => {
-      :SMOKESCREEN => { stages: 2 },
+      :SMOKESCREEN => { stages: 2, message: "The {2} boosted the Smokescreen! {1}'s accuracy greatly fell!" },
+    },
+    :abilityActivate => {
+      :BLAZE      => {},             # passive: fire moves get 1.5x (handled by existing Blaze check)
+      :FLAREBOOST => {},             # passive: fire moves get 1.5x when burned
+      :FLASHFIRE  => { eor: true, grounded: true },  # EOR: activates Flash Fire boost if grounded
     },
 	:healthChanges => [
     {

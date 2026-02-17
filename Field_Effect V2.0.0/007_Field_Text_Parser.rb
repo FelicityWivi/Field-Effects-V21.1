@@ -191,6 +191,22 @@ class FieldTextParser
           end
         end
         
+        # Parse ability activation
+        if data[:abilityActivate]
+          # Accepts either an array [:BLAZE, :FLAREBOOST] or a hash with config
+          raw = data[:abilityActivate]
+          @ability_activated = if raw.is_a?(Array)
+            raw.each_with_object({}) { |ability, h| h[ability] = {} }
+          elsif raw.is_a?(Hash)
+            raw
+          else
+            {}
+          end
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded abilityActivate for #{@name}: #{@ability_activated.keys.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect
@@ -224,6 +240,11 @@ class FieldTextParser
         # Register ability form changes effect (must be LAST to chain properly)
         if @ability_form_changes && !@ability_form_changes.empty?
           register_ability_form_changes
+        end
+        
+        # Register ability activation
+        if @ability_activated && !@ability_activated.empty?
+          register_ability_activation
         end
       end
       

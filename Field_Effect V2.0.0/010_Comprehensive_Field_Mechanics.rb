@@ -19,6 +19,7 @@ class Battle::Field
   attr_reader :ability_stat_boosts    # Stat boosts when battler with ability enters
   attr_reader :ability_form_changes   # Form changes when battler with ability enters
   attr_reader :move_stat_stage_mods   # Modify stat stage changes caused by moves
+  attr_reader :ability_activated      # Abilities activated by this field (passive + EOR)
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -35,6 +36,7 @@ class Battle::Field
     @ability_stat_boosts ||= {}
     @ability_form_changes ||= {}
     @move_stat_stage_mods ||= {}
+    @ability_activated ||= {}
   end
   
   # Called after initialization to register the no_charging effect
@@ -738,6 +740,66 @@ class Battle::Field
 end
 
 #===============================================================================
+# 10. ABILITY ACTIVATION
+# Populates @ability_activation (used by existing ability checks via apply_field_effect)
+# and handles special EOR effects like Flash Fire triggering at end of turn
+#===============================================================================
+class Battle::Field
+  # Special abilities that need EOR handling beyond just passive activation
+  EOR_ABILITY_HANDLERS = {
+    :FLASHFIRE => proc { |battler, battle, field|
+      next unless battler.grounded?
+      next if battler.effects[PBEffects::FlashFire]
+      next unless battler.hasActiveAbility?(:FLASHFIRE)
+      battle.pbShowAbilitySplash(battler)
+      battler.effects[PBEffects::FlashFire] = true
+      battle.pbDisplay(_INTL("{1} is being boosted by the flames!", battler.pbThis))
+      battle.pbHideAbilitySplash(battler)
+    }
+  }
+  
+  def register_ability_activation
+    return unless @ability_activated && @ability_activated.any?
+    
+    # Populate the @ability_activation array used by existing ability checks
+    # This makes apply_field_effect(:ability_activation) return these abilities
+    @ability_activated.each_key do |ability|
+      @ability_activation << ability unless @ability_activation.include?(ability)
+    end
+    
+    if $DEBUG
+      Console.echo_li("[ABILITY ACTIVATE] #{@name} activates: #{@ability_activation.inspect}")
+    end
+    
+    # Register EOR handlers for abilities that need special end-of-turn effects
+    eor_abilities = @ability_activated.select { |ability, config| config[:eor] }
+    return unless eor_abilities.any?
+    
+    existing_eor = @effects[:EOR_field_battler] || proc { |battler| }
+    
+    @effects[:EOR_field_battler] = proc { |battler|
+      existing_eor.call(battler)
+      next if battler.fainted?
+      
+      eor_abilities.each do |ability, config|
+        next unless battler.hasActiveAbility?(ability)
+        
+        # Check grounded condition if specified
+        next if config[:grounded] && !battler.grounded?
+        
+        # Run built-in handler if it exists
+        if EOR_ABILITY_HANDLERS[ability]
+          EOR_ABILITY_HANDLERS[ability].call(battler, @battle, self)
+        end
+        
+        # Run custom proc if specified
+        config[:proc]&.call(battler, @battle, self)
+      end
+    }
+  end
+end
+
+#===============================================================================
 # 10. HEALTH CHANGES
 # End of round healing or damage based on conditions
 #===============================================================================
@@ -976,59 +1038,194 @@ end
 
 #===============================================================================
 # 12. MOVE STAT STAGE MODIFIERS
-# Modify how many stages a move raises or lowers stats
-# e.g. Smokescreen lowers accuracy by 2 stages instead of 1 on volcanic field
+# Intercept stat stage changes from specific moves and replace with boosted version
+# e.g. Smokescreen lowers accuracy by 2 stages with a custom field message
 #===============================================================================
 
-# Hook into pbLowerStatStage on the battler level
-class Battle::Battler
-  alias field_stat_mod_pbLowerStatStage pbLowerStatStage
-  
-  def pbLowerStatStage(stat, numStages, user, showAnim = true, ignoreContrary = false, 
-                       mirrorArmor = false)
-    # Check if field modifies stat lowering for the move that caused this
-    if @battle.has_field? && @battle.current_field.respond_to?(:move_stat_stage_mods)
-      mods = @battle.current_field.move_stat_stage_mods
-      move = @battle.choices[@index]&.[](2)
-      
-      if mods && move && mods[move.id]
-        config = mods[move.id]
-        multiplier = config[:stages] || 1
-        numStages = (numStages * multiplier).round
-        numStages = 1 if numStages < 1
-        
-        if $DEBUG
-          Console.echo_li("[STAT MOD] #{move.id} lowering #{stat} by #{numStages} stages (#{multiplier}x)")
-        end
-      end
-    end
-    
-    field_stat_mod_pbLowerStatStage(stat, numStages, user, showAnim, ignoreContrary, mirrorArmor)
-  end
-  
-  alias field_stat_mod_pbRaiseStatStage pbRaiseStatStage
-  
-  def pbRaiseStatStage(stat, numStages, user, showAnim = true, ignoreContrary = false)
-    # Check if field modifies stat raising for the move that caused this
-    if @battle.has_field? && @battle.current_field.respond_to?(:move_stat_stage_mods)
-      mods = @battle.current_field.move_stat_stage_mods
-      move = @battle.choices[@index]&.[](2)
-      
-      if mods && move && mods[move.id]
-        config = mods[move.id]
-        multiplier = config[:stages] || 1
-        numStages = (numStages * multiplier).round
-        numStages = 1 if numStages < 1
-        
-        if $DEBUG
-          Console.echo_li("[STAT MOD] #{move.id} raising #{stat} by #{numStages} stages (#{multiplier}x)")
-        end
-      end
-    end
-    
-    field_stat_mod_pbRaiseStatStage(stat, numStages, user, showAnim, ignoreContrary)
+#===============================================================================
+# 12. MOVE STAT STAGE MODIFIERS
+# Matches the original code pattern - patches specific move subclasses directly
+# Works for both stat downs (TargetStatDownMove) and stat ups (StatUpMove)
+#===============================================================================
+
+# Helper module mixed into patched move classes
+module FieldStatStageMod
+  def field_stat_stage_config
+    return nil unless @battle.has_field?
+    return nil unless @battle.current_field.respond_to?(:move_stat_stage_mods)
+    mods = @battle.current_field.move_stat_stage_mods
+    return mods && mods[id] ? mods[id] : nil
   end
 end
+
+# Patch TargetStatDownMove subclasses
+class Battle::Move::TargetStatDownMove
+  include FieldStatStageMod
+  
+  alias field_stat_down_pbOnStartUse pbOnStartUse
+  
+  def pbOnStartUse(user, targets)
+    field_stat_down_pbOnStartUse(user, targets)
+    @field_stat_config = nil
+    config = field_stat_stage_config
+    return unless config
+    
+    new_stages = (@statDown[1] * (config[:stages] || 1)).round
+    if $DEBUG
+      Console.echo_li("[STAT MOD] #{id} @statDown #{@statDown[1]} -> #{new_stages} on #{@battle.current_field.name}")
+    end
+    @statDown = [@statDown[0], new_stages]
+    @field_stat_config = config if config[:message]
+  end
+  
+  alias field_stat_down_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    unless @field_stat_config&.dig(:message)
+      field_stat_down_pbEffectAgainstTarget(user, target)
+      return
+    end
+    stat, stages = @statDown[0], @statDown[1]
+    return unless target.pbCanLowerStatStage?(stat, user, self)
+    @battle.field_stat_override = true
+    target.pbLowerStatStage(stat, stages, user)
+    @battle.field_stat_override = false
+    msg = @field_stat_config[:message].gsub("{1}", target.pbThis).gsub("{2}", @battle.current_field.name)
+    @battle.pbDisplay(msg)
+  end
+end
+
+# Patch StatUpMove subclasses (used by self-targeting stat raises)
+class Battle::Move::StatUpMove
+  include FieldStatStageMod
+  
+  alias field_stat_up_pbOnStartUse pbOnStartUse
+  
+  def pbOnStartUse(user, targets)
+    field_stat_up_pbOnStartUse(user, targets)
+    @field_stat_config = nil
+    config = field_stat_stage_config
+    return unless config
+    
+    new_stages = (@statUp[1] * (config[:stages] || 1)).round
+    if $DEBUG
+      Console.echo_li("[STAT MOD] #{id} @statUp #{@statUp[1]} -> #{new_stages} on #{@battle.current_field.name}")
+    end
+    @statUp = [@statUp[0], new_stages]
+    @field_stat_config = config if config[:message]
+  end
+  
+  alias field_stat_up_pbEffectGeneral pbEffectGeneral
+  
+  def pbEffectGeneral(user)
+    unless @field_stat_config&.dig(:message)
+      field_stat_up_pbEffectGeneral(user)
+      return
+    end
+    stat, stages = @statUp[0], @statUp[1]
+    return unless user.pbCanRaiseStatStage?(stat, user, self)
+    @battle.field_stat_override = true
+    user.pbRaiseStatStage(stat, stages, user)
+    @battle.field_stat_override = false
+    msg = @field_stat_config[:message].gsub("{1}", user.pbThis).gsub("{2}", @battle.current_field.name)
+    @battle.pbDisplay(msg)
+  end
+end
+
+# Patch MultiStatUpMove subclasses (e.g. Work Up, Calm Mind, Shift Gear)
+class Battle::Move::MultiStatUpMove
+  include FieldStatStageMod
+  
+  alias field_multi_stat_up_pbOnStartUse pbOnStartUse
+  
+  def pbOnStartUse(user, targets)
+    field_multi_stat_up_pbOnStartUse(user, targets)
+    @field_stat_config = nil
+    config = field_stat_stage_config
+    return unless config
+    
+    # Scale all stat entries in @statUp (format: [stat, stages, stat, stages, ...])
+    new_statUp = @statUp.each_slice(2).map do |stat, stages|
+      [stat, (stages * (config[:stages] || 1)).round]
+    end.flatten
+    if $DEBUG
+      Console.echo_li("[STAT MOD] #{id} @statUp #{@statUp.inspect} -> #{new_statUp.inspect} on #{@battle.current_field.name}")
+    end
+    @statUp = new_statUp
+    @field_stat_config = config if config[:message]
+  end
+end
+
+# Suppress built-in stat message when field provides a custom one
+class Battle
+  attr_accessor :field_stat_override
+  
+  alias field_stat_override_pbDisplay pbDisplay
+  
+  def pbDisplay(msg, &block)
+    return if @field_stat_override
+    field_stat_override_pbDisplay(msg, &block)
+  end
+end
+
+#===============================================================================
+# 13. VOLCANIC FIELD MOVE EFFECTS
+# Hardcoded move behaviour changes specific to the volcanic field:
+#   - Burn Up: Fire typing is restored at the end of the round
+#   - Raging Fury / Outrage / Thrash: Skip post-thrash confusion
+#===============================================================================
+
+VOLCANIC_FIELD_IDS = %i[volcanic volcanictop superheated infernal].freeze
+
+# BURN UP - Restore Fire typing at end of round
+# Burn Up sets PBEffects::BurnUp = true when it removes the Fire type.
+# We restore type1/type2 from species data at EOR and clear the flag.
+class Battle
+  alias volcanic_move_pbEndOfRoundPhase pbEndOfRoundPhase
+
+  def pbEndOfRoundPhase
+    volcanic_move_pbEndOfRoundPhase
+
+    return unless has_field? && VOLCANIC_FIELD_IDS.include?(current_field.id)
+
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::BurnUp]
+
+      poke_data  = GameData::Species.get_species_form(battler.species, battler.form)
+      orig_type1 = poke_data.type1
+      orig_type2 = poke_data.type2
+      next unless orig_type1 == :FIRE || orig_type2 == :FIRE
+
+      battler.effects[PBEffects::BurnUp] = false
+      battler.type1 = orig_type1
+      battler.type2 = orig_type2
+
+      pbDisplay(_INTL("The Volcanic Field restored {1}'s Fire typing!", battler.pbThis))
+      Console.echo_li("[VOLCANIC] Burn Up reset for #{battler.pbThis}") if $DEBUG
+    end
+  end
+end
+
+# RAGING FURY / OUTRAGE / THRASH - No post-thrash confusion on volcanic field
+# After the final hit the game calls pbConfuse on the user.
+# We intercept it, check if the active move is a thrashing move, and suppress.
+class Battle::Battler
+  alias volcanic_pbConfuse pbConfuse
+
+  def pbConfuse(msg = nil)
+    if @battle.has_field? && VOLCANIC_FIELD_IDS.include?(@battle.current_field.id)
+      move = @battle.choices[@index]&.[](2)
+      if move && ["AttackAndSkipWithFury", "ThrashingMove"].include?(move.function_code.to_s)
+        Console.echo_li("[VOLCANIC] Suppressed confusion for #{pbThis} (#{move.id})") if $DEBUG
+        @battle.pbDisplay(_INTL("The volcanic heat kept {1} from getting confused!", pbThis))
+        return
+      end
+    end
+    volcanic_pbConfuse(msg)
+  end
+end
+
 
 #===============================================================================
 # 7. ICY FIELD MECHANICS
@@ -1402,6 +1599,27 @@ end
 # - stat: :ATTACK, :DEFENSE, :SPEED, :SPECIAL_ATTACK, :SPECIAL_DEFENSE, :EVASION, :ACCURACY
 # - stages: Number of stages to boost (default 1)
 # - message: Optional custom message (use {1} for Pokémon, {2} for field name)
+#
+# ABILITY ACTIVATION:
+# Hooks into the existing apply_field_effect(:ability_activation) system.
+# Abilities in this list are treated as "always active" on this field.
+#
+# Simple array (just passive activation - uses existing ability logic):
+# :abilityActivate => [:BLAZE, :FLAREBOOST, :FLASHFIRE]
+#
+# Hash with config (for EOR effects):
+# :abilityActivate => {
+#   :BLAZE      => {},                          # Passive: existing Blaze logic applies
+#   :FLAREBOOST => {},                          # Passive: existing Flare Boost logic applies
+#   :FLASHFIRE  => { eor: true, grounded: true } # EOR: activates Flash Fire at end of turn
+# }
+# - eor: true - Run effect at end of each round
+# - grounded: true - Only applies if battler is grounded
+#
+# Built-in EOR handlers: :FLASHFIRE
+# Any ability without a built-in handler will just appear in @ability_activation
+# which is checked by existing ability procs via:
+#   battle.apply_field_effect(:ability_activation, ...).include?(ability)
 #
 #
 # :GRASSY => {
