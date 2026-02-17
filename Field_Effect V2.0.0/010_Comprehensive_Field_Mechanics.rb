@@ -20,6 +20,10 @@ class Battle::Field
   attr_reader :ability_form_changes   # Form changes when battler with ability enters
   attr_reader :move_stat_stage_mods   # Modify stat stage changes caused by moves
   attr_reader :ability_activated      # Abilities activated by this field (passive + EOR)
+  attr_reader :ignore_acc_eva_changes # Abilities that ignore accuracy/evasion changes
+  attr_reader :status_immunity        # Status conditions prevented by type/ability on this field
+  attr_reader :weather_duration       # Extended weather duration for specific weather types
+  attr_reader :item_effect_mods       # Item effect modifications on this field
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -37,6 +41,10 @@ class Battle::Field
     @ability_form_changes ||= {}
     @move_stat_stage_mods ||= {}
     @ability_activated ||= {}
+    @ignore_acc_eva_changes ||= []
+    @status_immunity ||= {}
+    @weather_duration ||= {}
+    @item_effect_mods ||= {}
   end
   
   # Called after initialization to register the no_charging effect
@@ -1169,6 +1177,72 @@ class Battle
 end
 
 #===============================================================================
+# 15. WEATHER DURATION EXTENSION
+# Allows fields to extend the duration of specific weather types
+# Compatible with both base game weather and custom weather plugin
+#===============================================================================
+
+# Hook into Battle#pbStartWeather to extend weather duration based on field
+class Battle
+  alias field_weather_duration_pbStartWeather pbStartWeather
+  
+  def pbStartWeather(user, newWeather, fixedDuration = false, showAnimation = true)
+    # Call original method first
+    field_weather_duration_pbStartWeather(user, newWeather, fixedDuration, showAnimation)
+    
+    # Check if field extends duration for this weather
+    return unless has_field?
+    
+    # Access the field's weather_duration configuration
+    # current_field returns the Battle::Field instance which has the config
+    field_data = current_field
+    return unless field_data.respond_to?(:weather_duration)
+    return unless field_data.weather_duration && field_data.weather_duration[newWeather]
+    return if @field.weatherDuration <= 0 # Don't extend infinite weather
+    
+    extended_duration = field_data.weather_duration[newWeather]
+    @field.weatherDuration = extended_duration
+    
+    if $DEBUG
+      Console.echo_li("[WEATHER DURATION] #{field_data.name} extended #{newWeather} to #{extended_duration} turns")
+    end
+  end
+end
+
+# Also hook into custom weather plugin's pbStartWeather if it exists
+# This ensures compatibility with custom weather from the Repudiation plugin
+if defined?(CustomWeather)
+  class Battle
+    alias field_weather_custom_pbStartWeather customweather_pbStartWeather
+    
+    def customweather_pbStartWeather(user, newWeather, fixedDuration = false, showAnimation = true)
+      # Check if this is a custom weather that we should extend
+      should_extend = false
+      extended_duration = nil
+      
+      if has_field?
+        field_data = current_field
+        if field_data.respond_to?(:weather_duration) && field_data.weather_duration && field_data.weather_duration[newWeather]
+          should_extend = true
+          extended_duration = field_data.weather_duration[newWeather]
+        end
+      end
+      
+      # Call the custom weather version
+      field_weather_custom_pbStartWeather(user, newWeather, fixedDuration, showAnimation)
+      
+      # Apply field extension if applicable
+      if should_extend && @field.weatherDuration > 0
+        @field.weatherDuration = extended_duration
+        if $DEBUG
+          Console.echo_li("[WEATHER DURATION] #{current_field.name} extended #{newWeather} to #{extended_duration} turns")
+        end
+      end
+    end
+  end
+end
+
+#===============================================================================
 # 14. BEACH FIELD MOVE EFFECTS
 # Hardcoded move behaviour changes specific to the beach field:
 #   - Focus Energy:  boosts crit rate by 3 stages instead of 2
@@ -1178,6 +1252,109 @@ end
 #===============================================================================
 
 BEACH_FIELD_IDS = %i[beach].freeze
+
+# SHELL BELL - Restore 25% of damage dealt instead of 12.5% (1/8)
+# Shell Bell normally restores 1/8 of damage dealt. On beach field it restores 1/4.
+Battle::ItemEffects::AfterMoveUse.add(:SHELLBELL,
+  proc { |item, battler, user, move, switched_battlers, battle|
+    next if !user || !user.index
+    next if !user.damageState.totalHPLost || user.damageState.totalHPLost <= 0
+    next if !user.canHeal?
+    
+    # Calculate heal amount based on field
+    heal_fraction = 8.0  # Default: 1/8
+    if battle.has_field? && BEACH_FIELD_IDS.include?(battle.current_field.id)
+      field_data = battle.current_field
+      if field_data.respond_to?(:item_effect_mods) && 
+         field_data.item_effect_mods &&
+         field_data.item_effect_mods[:SHELLBELL]
+        heal_percent = field_data.item_effect_mods[:SHELLBELL][:heal_percent] || 0.125
+        heal_fraction = 1.0 / heal_percent
+      end
+    end
+    
+    # Apply healing
+    user.pbRecoverHP(user.damageState.totalHPLost / heal_fraction.to_i)
+    battle.pbDisplay(_INTL("{1} restored a little HP using its {2}!", user.pbThis, user.itemName))
+  }
+)
+
+# STATUS IMMUNITY - Prevent confusion on Fighting-types and Inner Focus
+# Hooks into the existing :status_immunity field effect
+class Battle::Field
+  def register_status_immunity
+    return unless @status_immunity && @status_immunity.any?
+    
+    @status_immunity.each do |status, config|
+      types = config[:types] || []
+      abilities = config[:abilities] || []
+      message = config[:message]
+      
+      existing = @effects[:status_immunity] || proc { |*args| false }
+      
+      @effects[:status_immunity] = proc { |battler, new_status, sleep_clause, user, show_messages, self_inflicted, move, ignore_status|
+        result = existing.call(battler, new_status, sleep_clause, user, show_messages, self_inflicted, move, ignore_status)
+        next true if result # Already immune from another source
+        
+        # Check if this status is prevented
+        next false unless new_status == status
+        
+        # Check type immunity
+        if types.any? && battler.pbHasType?(*types)
+          if show_messages
+            msg = message || _INTL("{1} is focused and cannot be confused!", battler.pbThis)
+            @battle.pbDisplay(msg)
+          end
+          next true
+        end
+        
+        # Check ability immunity
+        if abilities.any? && battler.hasActiveAbility?(abilities)
+          if show_messages
+            msg = message || _INTL("{1} is focused and cannot be confused!", battler.pbThis)
+            @battle.pbDisplay(msg)
+          end
+          next true
+        end
+        
+        next false
+      }
+    end
+  end
+end
+
+# IGNORE ACC/EVA CHANGES - Inner Focus, Own Tempo, Pure Power, Sand Veil, Steadfast
+# These abilities make the bearer ignore accuracy/evasion stage changes when attacking,
+# unless the target has As One or Unnerve.
+BEACH_IGNORE_ACC_EVA_ABILITIES = %i[INNERFOCUS OWNTEMPO PUREPOWER SANDVEIL STEADFAST].freeze
+BEACH_BLOCK_IGNORE_ABILITIES   = %i[ASONESINGLESTRIKE ASONERAPIDSTRIKE UNNERVE].freeze
+
+Battle::AbilityEffects::AccuracyCalcFromUser.add(:INNERFOCUS,
+  proc { |ability, mods, user, target, move, type|
+    next unless user.battle.has_field? && BEACH_FIELD_IDS.include?(user.battle.current_field.id)
+    next if target.hasActiveAbility?(BEACH_BLOCK_IGNORE_ABILITIES)
+    mods[:accuracy_multiplier] = 1.0
+    mods[:evasion_multiplier]  = 1.0
+  }
+)
+[:OWNTEMPO, :PUREPOWER, :SANDVEIL, :STEADFAST].each do |ab|
+  Battle::AbilityEffects::AccuracyCalcFromUser.copy(:INNERFOCUS, ab)
+end
+
+# WATER COMPACTION - additionally boosts Special Defense by 2 on activation
+# Water Compaction already boosts Defense when hit by a Water move.
+# We hook AfterMoveUseFromTarget to add the SpDef boost at the same moment.
+Battle::AbilityEffects::AfterMoveUseFromTarget.add(:WATERCOMPACTION,
+  proc { |ability, user, target, move, numHits, battlersHit, damage_state|
+    next unless target.battle.has_field? && BEACH_FIELD_IDS.include?(target.battle.current_field.id)
+    next unless move.type == :WATER
+    next unless target.pbCanRaiseStatStage?(:SPECIAL_DEFENSE, target, nil)
+    target.battle.pbShowAbilitySplash(target)
+    target.pbRaiseStatStage(:SPECIAL_DEFENSE, 2, target)
+    target.battle.pbDisplay(_INTL("The Beach's waters also boosted {1}'s Special Defense!", target.pbThis))
+    target.battle.pbHideAbilitySplash(target)
+  }
+)
 
 # FOCUS ENERGY - +3 crit stages instead of +2
 # Focus Energy's function class sets FocusEnergy to 2.
@@ -1259,6 +1436,73 @@ class Battle
     end
   end
 end
+
+# IGNORE ACCURACY/EVASION CHANGES
+# Inner Focus, Own Tempo, Pure Power, Sand Veil, and Steadfast ignore acc/eva changes
+# when attacking (unless target has As One or Unnerve).
+# Hook into AccuracyCalcFromUser to reset stage multipliers.
+Battle::AbilityEffects::AccuracyCalcFromUser.add(:INNERFOCUS,
+  proc { |ability, mods, user, target, move, type|
+    next unless user.battle.has_field? && BEACH_FIELD_IDS.include?(user.battle.current_field.id)
+    next if target.hasActiveAbility?([:ASONE, :UNNERVE])
+    # Neutralize evasion stages
+    mods[:evasion_stage] = 0
+    # Neutralize accuracy stages
+    mods[:accuracy_stage] = 0
+  }
+)
+
+Battle::AbilityEffects::AccuracyCalcFromUser.copy(:INNERFOCUS, :OWNTEMPO)
+Battle::AbilityEffects::AccuracyCalcFromUser.copy(:INNERFOCUS, :PUREPOWER)
+Battle::AbilityEffects::AccuracyCalcFromUser.copy(:INNERFOCUS, :SANDVEIL)
+Battle::AbilityEffects::AccuracyCalcFromUser.copy(:INNERFOCUS, :STEADFAST)
+
+# WATER COMPACTION - Additionally boosts SpDef by 2 stages on activation
+# Water Compaction normally boosts Defense by 2 when hit by Water.
+# On beach field it also boosts SpDef by 2.
+# Show a single combined message for both stat boosts.
+Battle::AbilityEffects::OnBeingHit.add(:WATERCOMPACTION,
+  proc { |ability, user, target, move, battle|
+    next if move.calcType != :WATER
+    is_beach = battle.has_field? && BEACH_FIELD_IDS.include?(battle.current_field.id)
+    
+    if is_beach
+      # Beach field: boost both Defense and SpDef with one message
+      battle.pbShowAbilitySplash(target)
+      can_def = target.pbCanRaiseStatStage?(:DEFENSE, target, move)
+      can_spdef = target.pbCanRaiseStatStage?(:SPECIAL_DEFENSE, target, move)
+      if can_def || can_spdef
+        target.pbRaiseStatStage(:DEFENSE, 2, target, false) if can_def
+        target.pbRaiseStatStage(:SPECIAL_DEFENSE, 2, target, false) if can_spdef
+        if can_def && can_spdef
+          battle.pbDisplay(_INTL("The Beach hardened {1}'s body and shell!", target.pbThis))
+        elsif can_def
+          battle.pbDisplay(_INTL("{1}'s Defense sharply rose!", target.pbThis))
+        else
+          battle.pbDisplay(_INTL("{1}'s Sp. Def sharply rose!", target.pbThis))
+        end
+      end
+      battle.pbHideAbilitySplash(target)
+    else
+      # Normal field: just boost Defense
+      target.pbRaiseStatStageByAbility(:DEFENSE, 2, target)
+    end
+  }
+)
+
+# SAND SPIT - Lowers all foes' accuracy by 1 stage on activation
+# Sand Spit normally summons Sandstorm when hit.
+# On beach field it also lowers all foes' accuracy by 1.
+Battle::AbilityEffects::OnBeingHit.add(:SANDSPIT,
+  proc { |ability, user, target, move, battle|
+    battle.pbStartWeatherAbility(:Sandstorm, target)
+    if battle.has_field? && BEACH_FIELD_IDS.include?(battle.current_field.id)
+      battle.allOtherSideBattlers(target.index).each do |b|
+        b.pbLowerStatStageByAbility(:ACCURACY, 1, target, true, true)
+      end
+    end
+  }
+)
 
 #===============================================================================
 # 13. VOLCANIC FIELD MOVE EFFECTS

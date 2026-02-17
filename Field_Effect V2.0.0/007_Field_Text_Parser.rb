@@ -210,6 +210,38 @@ class FieldTextParser
           end
         end
         
+        # Parse abilities that ignore accuracy/evasion changes
+        if data[:ignoreAccEvaChanges]
+          @ignore_acc_eva_changes = Array(data[:ignoreAccEvaChanges])
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded ignoreAccEvaChanges for #{@name}: #{@ignore_acc_eva_changes.inspect}")
+          end
+        end
+        
+        # Parse status immunity by type/ability
+        if data[:statusImmunity]
+          @status_immunity = data[:statusImmunity]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded statusImmunity for #{@name}: #{@status_immunity.inspect}")
+          end
+        end
+        
+        # Parse weather duration extensions
+        if data[:weatherDuration]
+          @weather_duration = data[:weatherDuration]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded weatherDuration for #{@name}: #{@weather_duration.inspect}")
+          end
+        end
+        
+        # Parse item effect modifications
+        if data[:itemEffectMods]
+          @item_effect_mods = data[:itemEffectMods]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded itemEffectMods for #{@name}: #{@item_effect_mods.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect
@@ -248,6 +280,11 @@ class FieldTextParser
         # Register ability activation
         if @ability_activated && !@ability_activated.empty?
           register_ability_activation
+        end
+        
+        # Register status immunity
+        if @status_immunity && !@status_immunity.empty?
+          register_status_immunity
         end
       end
       

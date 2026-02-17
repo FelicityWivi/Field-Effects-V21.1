@@ -1164,6 +1164,10 @@ FIELDEFFECTS = {
 	:secretPower => "MUDSHOT",
 	:naturePower => :MEDITATE,
 	:mimicry => :GROUND,
+	# Weather duration extension - Sandstorm lasts 8 turns instead of 5
+	:weatherDuration => {
+		:Sandstorm => 8
+	},
 	:damageMods => {
 		1.5 => [:HIDDENPOWER, :BRINE, :SMELLINGSALTS, :CRABHAMMER, :RAZORSHELL, :SHELLSIDEARM, :SHELLTRAP, :SCORCHINGSANDS, :SANDSEARSTORM, :STRENGTH, :LANDSWRATH, :THOUSANDWAVES, :SURF, :MUDDYWATER, :WAVECRASH, :CLANGOROUSSOULBLAZE, :HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT, :HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE, :HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE, :HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR, :HIDDENPOWERSTE, :HIDDENPOWERFAI],
 		2.0 => [:MUDSLAP, :MUDSHOT, :MUDBOMB, :SANDTOMB],
@@ -1216,6 +1220,37 @@ FIELDEFFECTS = {
 	:changeMessage => {},
 	:statusMods => [:CALMMIND, :KINESIS, :MEDITATE, :SANDATTACK, :SANDSTORM, :PSYCHUP, :FOCUSENERGY, :SHOREUP],
 	:changeEffects => {},
+	# Abilities always active or modified on beach field
+	:abilityActivate => {
+		:SANDFORCE => {},  # Rock/Ground/Steel moves boosted (passive via existing handler)
+		:SANDRUSH  => {},  # Speed doubled (passive via existing handler)
+		:SANDVEIL  => {},  # Evasion boosted (passive) + ignore acc/eva changes (hardcoded)
+	},
+	# Form changes triggered by field
+	:abilityFormChanges => {
+		:DARMANITAN => {
+			:ZENMODE => { form: 1, show_ability: true, message: "{1} calmed its mind and entered Zen Mode!" }
+		}
+	},
+	# Abilities that ignore accuracy/evasion changes when attacking on beach field
+	# Unless target has As One or Unnerve
+	:ignoreAccEvaChanges => [:INNERFOCUS, :OWNTEMPO, :PUREPOWER, :SANDVEIL, :STEADFAST],
+	# Status immunity on beach field
+	# Fighting-types and Inner Focus cannot be confused
+	:statusImmunity => {
+		:CONFUSION => {
+			types: [:FIGHTING],
+			abilities: [:INNERFOCUS],
+			message: "The Beach's focus prevents confusion!"
+		}
+	},
+	# Water Compaction: additionally boosts SpDef by 2 stages (hardcoded in section 14)
+	# Sand Spit: lowers all foes' accuracy by 1 stage on activation (hardcoded in section 14)
+	# Item effect modifications
+	# Shell Bell restores 25% of damage dealt instead of 12.5% (1/8)
+	:itemEffectMods => {
+		:SHELLBELL => { heal_percent: 0.25 }
+	},
 	:seed => {
 		:seedtype => :TELLURICSEED,
 		:effect => :FocusEnergy,
