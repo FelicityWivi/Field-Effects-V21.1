@@ -18,6 +18,7 @@ class Battle::Field
   attr_reader :health_changes         # End of round healing/damage
   attr_reader :ability_stat_boosts    # Stat boosts when battler with ability enters
   attr_reader :ability_form_changes   # Form changes when battler with ability enters
+  attr_reader :move_stat_stage_mods   # Modify stat stage changes caused by moves
   
   alias comprehensive_initialize initialize
   def initialize(*args)
@@ -33,6 +34,7 @@ class Battle::Field
     @health_changes ||= []
     @ability_stat_boosts ||= {}
     @ability_form_changes ||= {}
+    @move_stat_stage_mods ||= {}
   end
   
   # Called after initialization to register the no_charging effect
@@ -969,6 +971,99 @@ class Battle::Field
         end
       end
     }
+  end
+end
+
+#===============================================================================
+# 12. MOVE STAT STAGE MODIFIERS
+# Modify how many stages a move raises or lowers stats
+# e.g. Smokescreen lowers accuracy by 2 stages instead of 1 on volcanic field
+#===============================================================================
+class Battle::Move
+  alias field_stat_stage_pbChangeStatStages pbChangeStatStages
+  
+  def pbChangeStatStages(user, targets, forced = false)
+    # Check if field modifies stat stage changes for this move
+    if @battle.has_field? && @battle.current_field.respond_to?(:move_stat_stage_mods)
+      mods = @battle.current_field.move_stat_stage_mods
+      if mods && mods[@id]
+        config = mods[@id]
+        
+        # Temporarily override the stat stage changes
+        original_stages = {}
+        
+        if config[:stages]
+          # Apply multiplier to all stat changes
+          @statStageChanges&.each_with_index do |change, i|
+            if i.odd?  # Odd indices are stage values
+              original_stages[i] = change
+              @statStageChanges[i] = (change * config[:stages]).round
+            end
+          end
+        end
+        
+        result = field_stat_stage_pbChangeStatStages(user, targets, forced)
+        
+        # Restore original values
+        original_stages.each do |i, val|
+          @statStageChanges[i] = val
+        end
+        
+        return result
+      end
+    end
+    
+    field_stat_stage_pbChangeStatStages(user, targets, forced)
+  end
+end
+
+# Hook into pbLowerStatStage and pbRaiseStatStage on the battler level
+class Battle::Battler
+  alias field_stat_mod_pbLowerStatStage pbLowerStatStage
+  
+  def pbLowerStatStage(stat, numStages, user, showAnim = true, ignoreContrary = false, 
+                       mirrorArmor = false)
+    # Check if field modifies stat lowering for the move that caused this
+    if @battle.has_field? && @battle.current_field.respond_to?(:move_stat_stage_mods)
+      mods = @battle.current_field.move_stat_stage_mods
+      move = @battle.choices[@index]&.[](2)
+      
+      if mods && move && mods[move.id]
+        config = mods[move.id]
+        multiplier = config[:stages] || 1
+        numStages = (numStages * multiplier).round
+        numStages = 1 if numStages < 1
+        
+        if $DEBUG
+          Console.echo_li("[STAT MOD] #{move.id} lowering #{stat} by #{numStages} stages (#{multiplier}x)")
+        end
+      end
+    end
+    
+    field_stat_mod_pbLowerStatStage(stat, numStages, user, showAnim, ignoreContrary, mirrorArmor)
+  end
+  
+  alias field_stat_mod_pbRaiseStatStage pbRaiseStatStage
+  
+  def pbRaiseStatStage(stat, numStages, user, showAnim = true, ignoreContrary = false)
+    # Check if field modifies stat raising for the move that caused this
+    if @battle.has_field? && @battle.current_field.respond_to?(:move_stat_stage_mods)
+      mods = @battle.current_field.move_stat_stage_mods
+      move = @battle.choices[@index]&.[](2)
+      
+      if mods && move && mods[move.id]
+        config = mods[move.id]
+        multiplier = config[:stages] || 1
+        numStages = (numStages * multiplier).round
+        numStages = 1 if numStages < 1
+        
+        if $DEBUG
+          Console.echo_li("[STAT MOD] #{move.id} raising #{stat} by #{numStages} stages (#{multiplier}x)")
+        end
+      end
+    end
+    
+    field_stat_mod_pbRaiseStatStage(stat, numStages, user, showAnim, ignoreContrary)
   end
 end
 

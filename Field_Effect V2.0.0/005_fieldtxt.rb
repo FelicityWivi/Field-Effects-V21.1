@@ -336,17 +336,20 @@ FIELDEFFECTS = {
         stat: :DEFENSE, 
         stages: 1, 
         message: "{1}'s Magma Armor hardened its body!" 
-      }
-	    :STEAMENGINE => { 
+      },
+      :STEAMENGINE => { 
         stat: :SPEED, 
         stages: 1, 
         message: "{1}'s Steam Engine boosted its speed!" 
-      }
+      },
     },
     :abilityFormChanges => {
       :EISCUE => {
         :ICEFACE => { form: 1, show_ability: true, message: "{1}'s Ice Face melted!" }
       }
+    },
+    :moveStatStageMods => {
+      :SMOKESCREEN => { stages: 2 },
     },
 	:healthChanges => [
     {

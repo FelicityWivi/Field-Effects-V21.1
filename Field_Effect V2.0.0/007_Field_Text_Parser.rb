@@ -183,6 +183,14 @@ class FieldTextParser
           end
         end
         
+        # Parse move stat stage modifiers
+        if data[:moveStatStageMods]
+          @move_stat_stage_mods = data[:moveStatStageMods]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded moveStatStageMods for #{@name}: #{@move_stat_stage_mods.inspect}")
+          end
+        end
+        
         # Register no_charging field effect if we have no charging moves
         if @no_charging_moves && !@no_charging_moves.empty?
           register_no_charging_effect
