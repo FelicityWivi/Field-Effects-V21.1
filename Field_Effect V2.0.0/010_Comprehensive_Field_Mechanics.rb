@@ -3133,10 +3133,10 @@ end
 class Battle::Battler
   alias crystal_pbItemHPHealCheck pbItemHPHealCheck
   
-  def pbItemHPHealCheck
+  def pbItemHPHealCheck(*args)
     # This is called during switch-in after hazards
     # We need to intercept Stealth Rock damage specifically
-    crystal_pbItemHPHealCheck
+    crystal_pbItemHPHealCheck(*args)
   end
 end
 

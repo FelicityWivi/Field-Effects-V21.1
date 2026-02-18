@@ -43,20 +43,20 @@ end
 # :block_berry
 class Battle::Battler
   alias field_canConsumeBerry? canConsumeBerry?
-  def canConsumeBerry?
+  def canConsumeBerry?(item = nil)
     ret = @battle.apply_field_effect(:block_berry, self)
     return false if ret
-    return field_canConsumeBerry?
+    return field_canConsumeBerry?(item)
   end
 end
 
 # :block_heal
 class Battle::Battler
   alias field_canHeal? canHeal?
-  def canHeal?
+  def canHeal?(*args)
     ret = @battle.apply_field_effect(:block_heal, self)
     return false if ret
-    return field_canHeal?
+    return field_canHeal?(*args)
   end
 end
 
