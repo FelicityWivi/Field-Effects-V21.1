@@ -1188,6 +1188,1964 @@ class Battle
 end
 
 #===============================================================================
+# 30. BACK ALLEY FIELD MECHANICS
+# Healing reduction, ability switch-in boosts, item theft mechanics
+#===============================================================================
+
+BACK_ALLEY_IDS = %i[backalley].freeze
+
+# Passive healing reduction (33%)
+class Battle::Battler
+  alias backalley_pbRecoverHP pbRecoverHP
+  
+  def pbRecoverHP(amt, anim = true)
+    # Reduce healing by 33% on Back Alley
+    if @battle.has_field? && BACK_ALLEY_IDS.include?(@battle.current_field.id)
+      amt = (amt * 0.67).round
+    end
+    
+    backalley_pbRecoverHP(amt, anim)
+  end
+end
+
+# Pickpocket - Attack +1 on switch-in
+# Merciless - Attack +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:PICKPOCKET,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BACK_ALLEY_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:ATTACK, 1, battler)
+  }
+)
+
+Battle::AbilityEffects::OnSwitchIn.add(:MERCILESS,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BACK_ALLEY_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:ATTACK, 1, battler)
+  }
+)
+
+# Magician - Sp.Atk +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:MAGICIAN,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BACK_ALLEY_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:SPECIAL_ATTACK, 1, battler)
+  }
+)
+
+# Anticipation/Forewarn - Def/SpDef +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:ANTICIPATION,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BACK_ALLEY_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:DEFENSE, 1, battler)
+    battler.pbRaiseStatStageByAbility(:SPECIAL_DEFENSE, 1, battler)
+  }
+)
+
+Battle::AbilityEffects::OnSwitchIn.add(:FOREWARN,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BACK_ALLEY_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:DEFENSE, 1, battler)
+    battler.pbRaiseStatStageByAbility(:SPECIAL_DEFENSE, 1, battler)
+  }
+)
+
+# Rattled - Speed +1 on switch-in (already added in City)
+
+# Frisk - Steals item if user has none
+Battle::AbilityEffects::OnSwitchIn.add(:FRISK,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BACK_ALLEY_IDS.include?(battle.current_field.id)
+    next if battler.item
+    
+    # Try to steal from an opponent
+    battle.allOtherBattlers(battler.index).each do |b|
+      next if !b || b.fainted? || !b.item
+      
+      stolen_item = b.item
+      b.pbRemoveItem(false)
+      battler.item = stolen_item
+      battle.pbDisplay(_INTL("{1} stole {2}'s {3}!", battler.pbThis, b.pbThis(true), GameData::Item.get(stolen_item).name))
+      break
+    end
+  }
+)
+
+# Pursuit - Raises Speed when KOing
+class Battle::Move::DoublePowerIfTargetActed
+  alias backalley_pbEffectAfterAllHits pbEffectAfterAllHits
+  
+  def pbEffectAfterAllHits(user, target)
+    backalley_pbEffectAfterAllHits(user, target)
+    
+    # On Back Alley, raise Speed if KO'd
+    if @id == :PURSUIT &&
+       target.fainted? &&
+       @battle.has_field? &&
+       BACK_ALLEY_IDS.include?(@battle.current_field.id)
+      user.pbRaiseStatStage(:SPEED, 1, user)
+    end
+  end
+end
+
+# Trick/Switcheroo - Stat swap effects
+class Battle::Move::UserTargetSwapItems
+  alias backalley_pbEffectAfterAllHits pbEffectAfterAllHits
+  
+  def pbEffectAfterAllHits(user, target)
+    ret = backalley_pbEffectAfterAllHits(user, target)
+    
+    if @battle.has_field? && BACK_ALLEY_IDS.include?(@battle.current_field.id)
+      if @id == :TRICK
+        # Raise user Sp.Atk, lower target Sp.Atk
+        user.pbRaiseStatStage(:SPECIAL_ATTACK, 1, user)
+        target.pbLowerStatStage(:SPECIAL_ATTACK, 1, user)
+      elsif @id == :SWITCHEROO
+        # Raise user Attack, lower target Attack
+        user.pbRaiseStatStage(:ATTACK, 1, user)
+        target.pbLowerStatStage(:ATTACK, 1, user)
+      end
+    end
+    
+    return ret
+  end
+end
+
+# Snatch - Raises random stat by 2 stages when successful
+class Battle::Move::StealAndUseBeneficialStatusMove
+  alias backalley_pbEffectGeneral pbEffectGeneral
+  
+  def pbEffectGeneral(user)
+    ret = backalley_pbEffectGeneral(user)
+    
+    # On Back Alley, raise random stat by 2
+    if ret == 0 && @battle.has_field? && BACK_ALLEY_IDS.include?(@battle.current_field.id)
+      random_stat = [:ATTACK, :DEFENSE, :SPECIAL_ATTACK, :SPECIAL_DEFENSE, :SPEED].sample
+      user.pbRaiseStatStage(random_stat, 2, user)
+    end
+    
+    return ret
+  end
+end
+
+# Thief/Covet - 2x power when successfully stealing
+class Battle::Move::RemoveTargetItem
+  alias backalley_pbBaseDamage pbBaseDamage
+  
+  def pbBaseDamage(baseDmg, user, target)
+    dmg = backalley_pbBaseDamage(baseDmg, user, target)
+    
+    # On Back Alley, 2x power if can steal item
+    if [:THIEF, :COVET].include?(@id) &&
+       @battle.has_field? &&
+       BACK_ALLEY_IDS.include?(@battle.current_field.id) &&
+       !user.item && target.item
+      dmg *= 2
+    end
+    
+    return dmg
+  end
+end
+
+# Poison Gas/Smog/Corrosive Gas - Same as City Field (already implemented)
+# Defiant/Stench/Hustle/Download - Same as City Field (already implemented)
+
+#===============================================================================
+# 38. ROCKY FIELD - Raised Def no flinch, flinch damage, miss recoil, Stealth Rock 2x
+#===============================================================================
+
+ROCKY_FIELD_IDS = %i[rocky].freeze
+
+# Flinched Pokemon take 1/4 HP damage, miss recoil 1/8 HP
+# Pokemon with raised Defense can't be flinched
+# Stealth Rock damage doubled
+# NOTE: Complex mechanics need base game modifications
+
+#===============================================================================
+# 37. PSYCHIC TERRAIN - Priority blocking, Pure Power SpAtk, room durations
+#===============================================================================
+
+PSYCHIC_TERRAIN_IDS = %i[psychic].freeze
+
+# Priority moves fail on grounded Pokemon
+class Battle::Move
+  alias psychic_pbFailsAgainstTarget? pbFailsAgainstTarget?
+  
+  def pbFailsAgainstTarget?(user, target, show_message)
+    if @battle.has_field? && PSYCHIC_TERRAIN_IDS.include?(@battle.current_field.id)
+      if @priority > 0 && target.grounded?
+        @battle.pbDisplay(_INTL("{1} protected itself from the priority move!", target.pbThis)) if show_message
+        return true
+      end
+    end
+    psychic_pbFailsAgainstTarget?(user, target, show_message)
+  end
+end
+
+# Gravity/Trick Room/Magic Room/Wonder Room: 8 turns
+# Pure Power: Doubles SpAtk instead of Atk
+# Telepathy: Speed 2x
+# NOTE: Documented, complex ability modifications
+
+#===============================================================================
+# 36. BEWITCHED WOODS - Sleep damage, Grass healing, type effectiveness changes
+# Fairy SE vs Steel, Poison neutral vs Grass, Dark/Fairy neutral, Prankster works on Dark
+# NOTE: Complex type effectiveness overrides need base game modification
+#===============================================================================
+
+BEWITCHED_WOODS_IDS = %i[bewitched].freeze
+
+# Sleep damage, Grass healing EOR
+class Battle
+  alias bewitched_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    bewitched_pbEndOfRoundPhase
+    return unless has_field? && BEWITCHED_WOODS_IDS.include?(current_field.id)
+    
+    allBattlers.each do |b|
+      next if b.fainted?
+      # Sleep damage
+      if b.status == :SLEEP
+        dmg = b.totalhp / 16
+        b.pbReduceHP(dmg, false)
+      end
+      # Grass healing
+      if b.pbHasType?(:GRASS) && b.grounded? && b.hp < b.totalhp
+        b.pbRecoverHP(b.totalhp / 16)
+      end
+    end
+  end
+end
+
+#===============================================================================
+# 35. DESERT FIELD MECHANICS
+# Ground SpDef boost, Sandstorm 1/8 damage, Sunny Day damage/healing
+#===============================================================================
+
+DESERT_FIELD_IDS = %i[desert].freeze
+
+# Ground-types: 1.5x SpDef
+class Battle::Move
+  alias desert_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    desert_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    return unless @battle.has_field? && DESERT_FIELD_IDS.include?(@battle.current_field.id)
+    return unless target.pbHasType?(:GROUND)
+    return unless specialMove?(type)
+    
+    multipliers[:defense_multiplier] *= 1.5
+  end
+end
+
+# Sandstorm: 1/8 damage (add extra 1/16)
+# Sunny Day: Grass/Water take 1/8 damage EOR (unless Solar Power/Chlorophyll)
+# Grass/Water healed by Water moves in Sunny Day
+class Battle
+  alias desert_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    desert_pbEndOfRoundPhase
+    return unless has_field? && DESERT_FIELD_IDS.include?(current_field.id)
+    
+    allBattlers.each do |b|
+      next if b.fainted?
+      
+      # Sandstorm extra damage
+      if [:Sandstorm].include?(field.weather) && !b.pbHasType?(:GROUND, :ROCK, :STEEL)
+        extra_dmg = b.totalhp / 16
+        b.pbReduceHP(extra_dmg, false) if extra_dmg > 0
+      end
+      
+      # Sunny Day damage to Grass/Water
+      if [:Sun, :HarshSun].include?(field.weather)
+        if (b.pbHasType?(:GRASS) || b.pbHasType?(:WATER)) && 
+           !b.hasActiveAbility?([:SOLARPOWER, :CHLOROPHYLL])
+          dmg = b.totalhp / 8
+          b.pbReduceHP(dmg, false)
+          pbDisplay(_INTL("{1} is hurt by the intense sun!", b.pbThis))
+        end
+      end
+    end
+  end
+end
+
+#===============================================================================
+# 34. CORROSIVE FIELD - Entry hazard poison damage, sleep damage, Ingrain damage
+# NOTE: Entry hazard system needs base game modification
+#===============================================================================
+
+#===============================================================================
+# 33. CORROSIVE MIST FIELD MECHANICS
+# EOR poison all Pokemon, Aqua Ring/Dry Skin damage, field explosion
+#===============================================================================
+
+CORROSIVE_MIST_IDS = %i[corrosivemist].freeze
+
+# EOR poison for ALL Pokemon (unless Neutralizing Gas active)
+class Battle
+  alias corrosivemist_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    corrosivemist_pbEndOfRoundPhase
+    return unless has_field? && CORROSIVE_MIST_IDS.include?(current_field.id)
+    
+    # Check for Neutralizing Gas
+    neutralizing_gas_active = allBattlers.any? { |b| b.hasActiveAbility?(:NEUTRALIZINGGAS) }
+    return if neutralizing_gas_active
+    
+    allBattlers.each do |b|
+      next if b.fainted? || b.status == :POISON
+      b.pbPoison(nil, nil, false)
+    end
+  end
+end
+
+# Aqua Ring/Dry Skin damage users (Poison healed by Dry Skin)
+# Field explosion on Fire moves (KO all, Sturdy/Endure survive at 1 HP)
+# Floral Healing/Life Dew poison targets
+# Aftermath 50% damage
+# NOTE: Documented, complex field-clearing mechanic
+
+#===============================================================================
+# 32. CORRUPTED CAVE FIELD MECHANICS
+# EOR poison for grounded non-Poison/Steel, ability effects
+#===============================================================================
+
+CORRUPTED_CAVE_IDS = %i[corrupted].freeze
+
+# EOR poison for grounded non-Poison/Steel types
+class Battle
+  alias corrupted_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    corrupted_pbEndOfRoundPhase
+    return unless has_field? && CORRUPTED_CAVE_IDS.include?(current_field.id)
+    
+    allBattlers.each do |b|
+      next if b.fainted? || !b.grounded?
+      next if b.pbHasType?(:POISON) || b.pbHasType?(:STEEL)
+      next if b.hasActiveAbility?([:WONDERSKIN, :IMMUNITY, :PASTELVEIL])
+      next if b.status == :POISON
+      
+      b.pbPoison(nil, nil, false)
+      pbDisplay(_INTL("{1} was poisoned by the corruption!", b.pbThis))
+    end
+  end
+end
+
+# Grass Pelt/Leaf Guard/Flower Veil - Take damage EOR
+# Poison Heal - Heals EOR
+# Poison Touch/Point - Doubled activation
+# Toxic Boost - Doubled boost
+# Corrosion - 1.5x damage boost
+# Dry Skin - Heals if Poison, damages otherwise
+# NOTE: Documented, follow patterns from other fields
+
+#===============================================================================
+# 31. UNDERWATER FIELD MECHANICS
+# Speed halved for non-Water, physical move reduction, EOR damage
+#===============================================================================
+
+UNDERWATER_IDS = %i[underwater].freeze
+
+# Non-Water types: Speed halved
+class Battle::Battler
+  alias underwater_pbSpeed pbSpeed
+  
+  def pbSpeed
+    speed = underwater_pbSpeed
+    return speed if !@battle.has_field? || !UNDERWATER_IDS.include?(@battle.current_field.id)
+    return speed if pbHasType?(:WATER)
+    return (speed * 0.5).round
+  end
+end
+
+# Physical non-Water moves by non-Water types: 0.5x damage
+class Battle::Move
+  alias underwater_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    underwater_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    return unless @battle.has_field? && UNDERWATER_IDS.include?(@battle.current_field.id)
+    return if user.pbHasType?(:WATER) || type == :WATER
+    return unless physicalMove?(type)
+    
+    multipliers[:base_damage_multiplier] *= 0.5
+  end
+end
+
+# EOR damage to non-Water weak to Water
+class Battle
+  alias underwater_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    underwater_pbEndOfRoundPhase
+    return unless has_field? && UNDERWATER_IDS.include?(current_field.id)
+    
+    allBattlers.each do |b|
+      next if b.fainted? || b.pbHasType?(:WATER)
+      effectiveness = Effectiveness.calculate(:WATER, *b.pbTypes(true))
+      next unless Effectiveness.super_effective?(effectiveness)
+      
+      dmg = (b.totalhp / 16.0).round
+      dmg = (dmg * 2).round if b.hasActiveAbility?([:MAGMAARMOR, :FLAMEBODY])
+      b.pbReduceHP(dmg, false)
+      pbDisplay(_INTL("{1} is hurt by the water pressure!", b.pbThis))
+    end
+  end
+end
+
+# Water hits Water for neutral damage
+# Whirlpool confuses, Electric never misses
+# NOTE: Similar implementations to other fields
+
+#===============================================================================
+# 30. WATER SURFACE FIELD MECHANICS
+# Speed reduction for non-Water grounded, ability activations
+#===============================================================================
+
+WATER_SURFACE_IDS = %i[watersurface].freeze
+
+# Passive Speed reduction (0.75x) for grounded non-Water types
+# Applied via Battle::Battler#pbSpeed hook
+class Battle::Battler
+  alias watersurface_pbSpeed pbSpeed
+  
+  def pbSpeed
+    speed = watersurface_pbSpeed
+    return speed if !@battle.has_field? || !WATER_SURFACE_IDS.include?(@battle.current_field.id)
+    return speed if pbHasType?(:WATER) || !grounded?
+    return speed if hasActiveAbility?([:SWIFTSWIM, :SURGESURFER])
+    return (speed * 0.75).round
+  end
+end
+
+# Swift Swim / Surge Surfer - Speed 2x
+Battle::AbilityEffects::SpeedCalc.add(:SWIFTSWIM,
+  proc { |ability, battler, mult|
+    next mult * 2 if battler.battle.has_field? && WATER_SURFACE_IDS.include?(battler.battle.current_field.id)
+    next mult * 2 if [:Rain, :HeavyRain].include?(battler.battle.field.weather)
+    next mult
+  }
+)
+
+Battle::AbilityEffects::SpeedCalc.add(:SURGESURFER,
+  proc { |ability, battler, mult|
+    next mult * 2 if battler.battle.has_field? && WATER_SURFACE_IDS.include?(battler.battle.current_field.id)
+    next mult * 2 if battler.battle.field.terrain == :Electric
+    next mult
+  }
+)
+
+# Torrent - Always active
+Battle::AbilityEffects::DamageCalcFromUser.add(:TORRENT,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if type != :WATER
+    if user.battle.has_field? && WATER_SURFACE_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 1.5
+    elsif user.hp <= user.totalhp / 3
+      mults[:attack_multiplier] *= 1.5
+    end
+  }
+)
+
+# Dry Skin / Water Absorb - Gradual HP restore
+Battle::AbilityEffects::EndOfRoundHealing.add(:DRYSKIN,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !WATER_SURFACE_IDS.include?(battle.current_field.id)
+    next if !battler.grounded? || battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis)) if Battle::Scene::USE_ABILITY_SPLASH
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+Battle::AbilityEffects::EndOfRoundHealing.add(:WATERABSORB,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !WATER_SURFACE_IDS.include?(battle.current_field.id)
+    next if !battler.grounded? || battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis)) if Battle::Scene::USE_ABILITY_SPLASH
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Gulp Missile - Always Arrokuda
+Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE,
+  proc { |ability, user, target, move, battle|
+    next if !battle.has_field? || !WATER_SURFACE_IDS.include?(battle.current_field.id)
+    # Always form 2 (Arrokuda)
+    target.pbChangeForm(2, _INTL("{1} caught an Arrokuda!", target.pbThis))
+  }
+)
+
+# Whirlpool - 1/6 damage, Aqua Ring - 1/8 healing, Tar Shot wash
+class Battle
+  alias watersurface_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    watersurface_pbEndOfRoundPhase
+    return unless has_field? && WATER_SURFACE_IDS.include?(current_field.id)
+    
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      
+      # Whirlpool extra damage
+      if battler.effects[PBEffects::Trapping] > 0
+        trapping_move = battler.effects[PBEffects::TrappingMove] if PBEffects.const_defined?(:TrappingMove)
+        if trapping_move == :WHIRLPOOL
+          extra_dmg = battler.totalhp / 24
+          battler.pbReduceHP(extra_dmg, false) if extra_dmg > 0
+        end
+      end
+      
+      # Aqua Ring extra healing
+      if battler.effects[PBEffects::AquaRing]
+        extra_heal = battler.totalhp / 16
+        battler.pbRecoverHP(extra_heal) if battler.hp < battler.totalhp
+      end
+      
+      # Tar Shot wash off
+      battler.effects[PBEffects::TarShot] = false if battler.effects[PBEffects::TarShot]
+    end
+  end
+end
+
+# Life Dew - Grants Aqua Ring
+# NOTE: HealAllyOrUserByQuarterOfTotalHP doesn't have pbEffectGeneral in v21.1
+# Would need base game modification to add Aqua Ring effect on Water Surface
+
+#===============================================================================
+# 29. CITY FIELD MECHANICS
+# Ability switch-in boosts, Poison Gas/Smog modifications
+#===============================================================================
+
+CITY_FIELD_IDS = %i[city].freeze
+
+# Early Bird - Attack +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:EARLYBIRD,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:ATTACK, 1, battler)
+  }
+)
+
+# Pickup - Speed +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:PICKUP,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:SPEED, 1, battler)
+  }
+)
+
+# Big Pecks - Defense +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:BIGPECKS,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:DEFENSE, 1, battler)
+  }
+)
+
+# Rattled - Speed +1 on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:RATTLED,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:SPEED, 1, battler)
+  }
+)
+
+# Frisk - Lowers opponents' Special Defense
+Battle::AbilityEffects::OnSwitchIn.add(:FRISK,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    
+    # Lower all opponents' Sp.Def
+    battle.allOtherBattlers(battler.index).each do |b|
+      next if b.fainted?
+      b.pbLowerStatStage(:SPECIAL_DEFENSE, 1, battler)
+    end
+  }
+)
+
+# Competitive - Raises Sp.Atk by extra stage (total +2)
+# Already handled via abilityMods in parser
+
+# Stench - Doubled activation rate (60% from 30%)
+Battle::AbilityEffects::OnBeingHit.add(:STENCH,
+  proc { |ability, user, target, move, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    next if !move.pbContactMove?(user)
+    next if user.fainted?
+    
+    # 60% chance to flinch on City Field
+    next if rand(100) >= 60
+    
+    user.pbFlinch
+  }
+)
+
+# Hustle - 67% accuracy (33% reduction), 1.75x Attack on City Field
+Battle::AbilityEffects::DamageCalcFromUser.add(:HUSTLE,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !user.battle.has_field? || !CITY_FIELD_IDS.include?(user.battle.current_field.id)
+    next if !move.physicalMove?(type)
+    
+    # 1.75x Attack instead of 1.5x
+    mults[:attack_multiplier] *= 1.75 / 1.5  # Multiply by extra 1.1667
+  }
+)
+
+Battle::AbilityEffects::AccuracyCalcFromUser.add(:HUSTLE,
+  proc { |ability, mods, user, target, move, type|
+    next if !user.battle.has_field? || !CITY_FIELD_IDS.include?(user.battle.current_field.id)
+    next if !move.physicalMove?(type)
+    
+    # 67% accuracy (33% reduction) instead of 80% (20% reduction)
+    mods[:accuracy_multiplier] *= 0.67 / 0.8  # Multiply by extra 0.8375
+  }
+)
+
+# Download - Doubled boost (+2 instead of +1)
+Battle::AbilityEffects::OnSwitchIn.add(:DOWNLOAD,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CITY_FIELD_IDS.include?(battle.current_field.id)
+    
+    # Calculate which stat to raise
+    raise_atk = false
+    battle.allOtherBattlers(battler.index).each do |b|
+      next if !b || b.fainted?
+      if b.defense < b.spdef
+        raise_atk = true
+        break
+      end
+    end
+    
+    # Raise by 2 stages instead of 1
+    if raise_atk
+      battler.pbRaiseStatStageByAbility(:ATTACK, 2, battler)
+    else
+      battler.pbRaiseStatStageByAbility(:SPECIAL_ATTACK, 2, battler)
+    end
+  }
+)
+
+# Poison Gas/Smog - Always hit and badly poison
+class Battle::Move::PoisonTarget
+  alias city_pbFailsAgainstTarget? pbFailsAgainstTarget?
+  
+  def pbFailsAgainstTarget?(user, target, show_message)
+    if [:POISONGAS, :SMOG].include?(@id) &&
+       @battle.has_field? &&
+       CITY_FIELD_IDS.include?(@battle.current_field.id)
+      # Never miss
+      @city_field_boost = true
+      return false if target.pbCanPoison?(user, false, self)
+    end
+    
+    city_pbFailsAgainstTarget?(user, target, show_message)
+  end
+  
+  alias city_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    if @city_field_boost
+      # Badly poison instead of regular poison
+      target.pbPoison(user, nil, true)
+      @city_field_boost = nil
+      return 0
+    end
+    
+    city_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Recycle - Raises random stat
+class Battle::Move::RestoreUserConsumedItem
+  alias city_pbEffectGeneral pbEffectGeneral
+  
+  def pbEffectGeneral(user)
+    ret = city_pbEffectGeneral(user)
+    
+    # On City Field, raise random stat
+    if ret == 0 && @battle.has_field? && CITY_FIELD_IDS.include?(@battle.current_field.id)
+      random_stat = [:ATTACK, :DEFENSE, :SPECIAL_ATTACK, :SPECIAL_DEFENSE, :SPEED].sample
+      user.pbRaiseStatStage(random_stat, 1, user)
+    end
+    
+    return ret
+  end
+end
+
+# Corrosive Gas - Lowers all stats by 1 stage when successful
+class Battle::Move::RemoveTargetItem
+  alias city_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    ret = city_pbEffectAgainstTarget(user, target)
+    
+    # On City Field, lower all stats if successful
+    if ret == 0 && 
+       @id == :CORROSIVEGAS &&
+       @battle.has_field? && 
+       CITY_FIELD_IDS.include?(@battle.current_field.id)
+      target.pbLowerStatStage(:ATTACK, 1, user)
+      target.pbLowerStatStage(:DEFENSE, 1, user)
+      target.pbLowerStatStage(:SPECIAL_ATTACK, 1, user)
+      target.pbLowerStatStage(:SPECIAL_DEFENSE, 1, user)
+      target.pbLowerStatStage(:SPEED, 1, user)
+    end
+    
+    return ret
+  end
+end
+
+#===============================================================================
+# 28. SNOWY MOUNTAIN FIELD MECHANICS
+# Ice-type Defense boost in Hail, ability activations, Ice Scales modification
+#===============================================================================
+
+SNOWY_MOUNTAIN_IDS = %i[snowymountain].freeze
+
+# Ice-type Defense boost during Hail (1.5x)
+class Battle::Move
+  alias snowy_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    snowy_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Ice-types get 1.5x Defense during Hail on Snowy Mountain
+    return unless @battle.has_field? && SNOWY_MOUNTAIN_IDS.include?(@battle.current_field.id)
+    return unless [:Hail, :Snow].include?(@battle.field.weather)
+    return unless target.pbHasType?(:ICE)
+    
+    # Boost defense calculation
+    multipliers[:defense_multiplier] *= 1.5
+  end
+end
+
+# Slush Rush - Activated in Hail/Snow
+Battle::AbilityEffects::SpeedCalc.add(:SLUSHRUSH,
+  proc { |ability, battler, mult|
+    next mult if !battler.battle.has_field? || !SNOWY_MOUNTAIN_IDS.include?(battler.battle.current_field.id)
+    next mult * 2 if [:Hail, :Snow].include?(battler.battle.field.weather)
+    next mult
+  }
+)
+
+# Ice Body - Gradual HP restore in Hail/Snow
+Battle::AbilityEffects::EndOfRoundHealing.add(:ICEBODY,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !SNOWY_MOUNTAIN_IDS.include?(battle.current_field.id)
+    next if ![:Hail, :Snow].include?(battle.field.weather)
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Snow Cloak - Evasion boost in Hail/Snow (already in base game, just needs activation)
+Battle::AbilityEffects::AccuracyCalcFromTarget.add(:SNOWCLOAK,
+  proc { |ability, mods, user, target, move, type|
+    next if !target.battle.has_field? || !SNOWY_MOUNTAIN_IDS.include?(target.battle.current_field.id)
+    if [:Hail, :Snow].include?(target.battle.field.weather)
+      mods[:evasion_multiplier] *= 1.25
+    end
+  }
+)
+
+# Long Reach - 1.5x damage (same as Mountain Field)
+Battle::AbilityEffects::DamageCalcFromUser.add(:LONGREACH,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !user.battle.has_field? || !SNOWY_MOUNTAIN_IDS.include?(user.battle.current_field.id)
+    mults[:attack_multiplier] *= 1.5
+  }
+)
+
+# Ice Scales - Ignores Ice-type weaknesses
+class Battle::Move
+  alias snowy_icescales_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    snowy_icescales_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Ice Scales ignores Ice weaknesses on Snowy Mountain
+    return unless @battle.has_field? && SNOWY_MOUNTAIN_IDS.include?(@battle.current_field.id)
+    return unless target.hasActiveAbility?(:ICESCALES)
+    return unless type == :ICE
+    
+    # If target is weak to Ice, make it neutral
+    effectiveness = Effectiveness.calculate(type, *target.pbTypes(true))
+    if Effectiveness.super_effective?(effectiveness)
+      # Divide out the super effectiveness
+      multipliers[:final_damage_multiplier] /= 2.0
+    end
+  end
+end
+
+# Ball Fetch - Gets Snowballs on Snowy Mountain
+Battle::AbilityEffects::OnSwitchIn.add(:BALLFETCH,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !SNOWY_MOUNTAIN_IDS.include?(battle.current_field.id)
+    next if battler.item
+    
+    # Give Snowball item
+    battler.item = :SNOWBALL
+    battle.pbDisplay(_INTL("{1} fetched a Snowball!", battler.pbThis))
+  }
+)
+
+# Bitter Malice - 10% freeze chance on Snowy Mountain
+# NOTE: This move's function code may not support pbAdditionalEffect
+# Would need to modify the base move code to add freeze chance on Snowy Mountain
+
+# Tailwind + Strong Winds (same as Mountain/Volcanic Top)
+# Special Flying moves boost (same as Mountain)
+# Wind moves boost in Strong Winds (same as Mountain)
+# These are already implemented and will work for Snowy Mountain too
+
+#===============================================================================
+# 27. MOUNTAIN FIELD MECHANICS
+# Tailwind + Strong Winds, Long Reach boost, Flying move boosts
+#===============================================================================
+
+MOUNTAIN_FIELD_IDS = %i[mountain].freeze
+
+# Long Reach - 1.5x damage on Mountain Field
+Battle::AbilityEffects::DamageCalcFromUser.add(:LONGREACH,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !user.battle.has_field? || !MOUNTAIN_FIELD_IDS.include?(user.battle.current_field.id)
+    mults[:attack_multiplier] *= 1.5
+  }
+)
+
+# Tailwind - Lasts 6 turns and creates Strong Winds (same as Volcanic Top)
+# Already implemented in Volcanic Top section, reuse here
+
+# Special Flying moves get additional 1.5x boost during Strong Winds
+class Battle::Move
+  alias mountain_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    mountain_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # On Mountain Field during Strong Winds, special Flying moves get extra boost
+    return unless @battle.has_field? && MOUNTAIN_FIELD_IDS.include?(@battle.current_field.id)
+    return unless @battle.field.weather == :StrongWinds
+    return unless type == :FLYING && specialMove?(type)
+    
+    # Additional 1.5x boost
+    multipliers[:base_damage_multiplier] *= 1.5
+  end
+end
+
+# Wind moves (Ominous Wind, Razor Wind, Icy Wind, etc.) also get boost in Strong Winds
+# This applies to: OMINOUSWIND, RAZORWIND, ICYWIND, SILVERWIND, FAIRYWIND, TWISTER, GUST
+MOUNTAIN_WIND_MOVES = [:OMINOUSWIND, :RAZORWIND, :ICYWIND, :SILVERWIND, :FAIRYWIND, :TWISTER, :GUST].freeze
+
+class Battle::Move
+  alias mountain_wind_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    mountain_wind_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Wind moves get 1.5x boost during Strong Winds on Mountain Field
+    return unless @battle.has_field? && MOUNTAIN_FIELD_IDS.include?(@battle.current_field.id)
+    return unless @battle.field.weather == :StrongWinds
+    return unless MOUNTAIN_WIND_MOVES.include?(@id)
+    
+    multipliers[:base_damage_multiplier] *= 1.5
+  end
+end
+
+# Hail weather transformation to Snowy Mountain after 3 consecutive turns
+class Battle
+  alias mountain_hail_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    mountain_hail_pbEndOfRoundPhase
+    
+    # Check for Hail on Mountain Field
+    if has_field? && MOUNTAIN_FIELD_IDS.include?(current_field.id)
+      if [:Hail, :Snow].include?(field.weather)
+        # Increment hail counter
+        @mountain_hail_turns ||= 0
+        @mountain_hail_turns += 1
+        
+        if @mountain_hail_turns >= 3
+          # Transform to Snowy Mountain
+          pbDisplay(_INTL("The mountain became covered in snow!"))
+          pbChangeBattleField(:SNOWYMOUNTAIN)
+          @mountain_hail_turns = 0
+        end
+      else
+        # Reset counter if weather changes
+        @mountain_hail_turns = 0
+      end
+    else
+      @mountain_hail_turns = 0
+    end
+    
+    # Check for Sun on Snowy Mountain Field (reverse transformation)
+    if has_field? && current_field.id == :snowymountain
+      if [:Sun, :HarshSun].include?(field.weather)
+        # Increment sun counter
+        @snowy_sun_turns ||= 0
+        @snowy_sun_turns += 1
+        
+        if @snowy_sun_turns >= 3
+          # Transform to Mountain
+          pbDisplay(_INTL("The snow melted away!"))
+          pbChangeBattleField(:MOUNTAIN)
+          @snowy_sun_turns = 0
+        end
+      else
+        # Reset counter if weather changes
+        @snowy_sun_turns = 0
+      end
+    else
+      @snowy_sun_turns = 0
+    end
+  end
+end
+
+#===============================================================================
+# 26. BLESSED FIELD MECHANICS
+# Normal hits Ghost/Dark for SE, partner damage immunity, healing effects
+#===============================================================================
+
+BLESSED_FIELD_IDS = %i[holy].freeze
+
+# Normal hits Ghost and Dark for super effective damage
+class Battle::Move
+  alias blessed_pbCalcTypeMod pbCalcTypeMod
+  
+  def pbCalcTypeMod(moveType, user, target)
+    typeMod = blessed_pbCalcTypeMod(moveType, user, target)
+    
+    # On Blessed Field, Normal hits Ghost and Dark for super effective
+    if moveType == :NORMAL &&
+       @battle.has_field? &&
+       BLESSED_FIELD_IDS.include?(@battle.current_field.id)
+      if target.pbHasType?(:GHOST) || target.pbHasType?(:DARK)
+        return Effectiveness::SUPER_EFFECTIVE_ONE
+      end
+    end
+    
+    return typeMod
+  end
+end
+
+# Partner damage immunity - Pokemon avoid damage from partner's moves
+class Battle::Move
+  alias blessed_pbChangeTargetHP pbChangeTargetHP if method_defined?(:pbChangeTargetHP)
+  
+  def pbChangeTargetHP(target, damage, opts = {})
+    # On Blessed Field, partners don't take damage
+    if @battle.has_field? &&
+       BLESSED_FIELD_IDS.include?(@battle.current_field.id) &&
+       @battle.pbSideSize(@user.index) > 1  # Double battle
+      # Check if target is on same side as user
+      if @battle.pbIsOpposingSide?(target.index) != @battle.pbIsOpposingSide?(@user.index)
+        # Same side - no damage
+        damage = 0
+      end
+    end
+    
+    return blessed_pbChangeTargetHP(target, damage, opts) if defined?(blessed_pbChangeTargetHP)
+    return damage
+  end
+end
+
+# Wish - Restores 75% HP
+# Life Dew - 50% healing (from 25%)
+class Battle::Battler
+  alias blessed_healing_pbRecoverHP pbRecoverHP
+  
+  def pbRecoverHP(amt, anim = true)
+    # Check healing moves on Blessed Field
+    if @battle.respond_to?(:choices) && @battle.has_field? && BLESSED_FIELD_IDS.include?(@battle.current_field.id)
+      current_move = @battle.choices[@index] ? @battle.choices[@index][2] : nil
+      if current_move
+        if current_move.id == :WISH
+          amt = (@totalhp * 3 / 4.0).round
+        elsif current_move.id == :LIFEDEW
+          amt = (@totalhp / 2.0).round
+        end
+      end
+    end
+    
+    blessed_healing_pbRecoverHP(amt, anim)
+  end
+end
+
+# Nature's Madness - 66% HP damage
+class Battle::Move::LowerTargetHPToUserHP
+  alias blessed_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    if @id == :NATURESMADNESS &&
+       @battle.has_field? &&
+       BLESSED_FIELD_IDS.include?(@battle.current_field.id)
+      # Deal 66% HP damage
+      dmg = (target.hp * 2 / 3.0).round
+      target.pbReduceHP(dmg, false)
+      return 0
+    end
+    
+    blessed_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Curse (Ghost-type) - Lifted at end of turn
+class Battle
+  alias blessed_curse_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    blessed_curse_pbEndOfRoundPhase
+    return unless has_field? && BLESSED_FIELD_IDS.include?(current_field.id)
+    
+    # Remove Curse from all Pokemon
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      if battler.effects[PBEffects::Curse]
+        battler.effects[PBEffects::Curse] = false
+        pbDisplay(_INTL("The blessing lifted the curse on {1}!", battler.pbThis))
+      end
+    end
+  end
+end
+
+# Spirit Break - Super effective vs Ghost
+class Battle::Move::LowerTargetAtkSpAtk1
+  alias blessed_pbCalcTypeModSingle pbCalcTypeModSingle
+  
+  def pbCalcTypeModSingle(moveType, defType, user, target)
+    ret = blessed_pbCalcTypeModSingle(moveType, defType, user, target)
+    
+    # Spirit Break hits Ghost for super effective on Blessed Field
+    if @id == :SPIRITBREAK &&
+       defType == :GHOST &&
+       @battle.has_field? &&
+       BLESSED_FIELD_IDS.include?(@battle.current_field.id)
+      return Effectiveness::SUPER_EFFECTIVE_ONE
+    end
+    
+    return ret
+  end
+end
+
+# Justified - Effect doubled (Attack +2 instead of +1)
+Battle::AbilityEffects::AfterMoveUseFromTarget.add(:JUSTIFIED,
+  proc { |ability, target, user, move, switched_battlers, battle|
+    next if !battle.has_field? || !BLESSED_FIELD_IDS.include?(battle.current_field.id)
+    next if move.calcType != :DARK
+    
+    # Boost by 2 stages instead of 1
+    battle.pbShowAbilitySplash(target, true)
+    target.pbRaiseStatStage(:ATTACK, 2, target)
+    battle.pbHideAbilitySplash(target)
+  }
+)
+
+# Cursed Body - Has no effect (disabled)
+# Perish Body - Has no effect (disabled)
+# These are handled by checking the field in their base implementations
+
+# RKS System - Always Dark type on Blessed Field
+Battle::AbilityEffects::OnSwitchIn.add(:RKSSYSTEM,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !BLESSED_FIELD_IDS.include?(battle.current_field.id)
+    battler.pbChangeTypes(:DARK)
+    battle.pbDisplay(_INTL("{1} transformed into the Dark type!", battler.pbThis))
+  }
+)
+
+# Power Spot - 1.5x damage (from 1.3x)
+# Already handled in general Power Spot code
+
+#===============================================================================
+# 25. HAUNTED FIELD MECHANICS
+# Sleep HP loss, Ghost neutral to Normal, ability effects
+#===============================================================================
+
+HAUNTED_FIELD_IDS = %i[haunted].freeze
+
+# Sleep HP loss - Non-Ghost types lose HP while asleep
+class Battle
+  alias haunted_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    haunted_pbEndOfRoundPhase
+    return unless has_field? && HAUNTED_FIELD_IDS.include?(current_field.id)
+    
+    # Sleeping non-Ghost types take damage
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next if battler.status != :SLEEP
+      next if battler.pbHasType?(:GHOST)
+      
+      damage = battler.totalhp / 8
+      battler.pbReduceHP(damage, false)
+      pbDisplay(_INTL("{1} is suffering in its nightmares!", battler.pbThis))
+    end
+  end
+end
+
+# Ghost neutral to Normal - Override type effectiveness
+class Battle::Move
+  alias haunted_pbCalcTypeMod pbCalcTypeMod
+  
+  def pbCalcTypeMod(moveType, user, target)
+    typeMod = haunted_pbCalcTypeMod(moveType, user, target)
+    
+    # On Haunted Field, Ghost hits Normal for neutral damage
+    if moveType == :GHOST &&
+       target.pbHasType?(:NORMAL) &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      # Override the immunity to neutral
+      return Effectiveness::NORMAL_EFFECTIVE_ONE
+    end
+    
+    return typeMod
+  end
+end
+
+# Nightmare - More damage on Haunted Field
+class Battle
+  alias haunted_nightmare_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    haunted_nightmare_pbEndOfRoundPhase
+    return unless has_field? && HAUNTED_FIELD_IDS.include?(current_field.id)
+    
+    # Nightmare normally deals 1/4, boost to 1/3
+    # Base damage already happened, add extra 1/12
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Nightmare]
+      next if battler.status != :SLEEP
+      
+      extra_damage = battler.totalhp / 12
+      battler.pbReduceHP(extra_damage, false)
+    end
+  end
+end
+
+# NOTE: Curse (Ghost-type) HP cost reduction to 25% on Haunted Field
+# This is complex as Curse has different behavior for Ghost vs non-Ghost users
+# Best implemented by adding to fieldtxt :moveEffects with custom handler
+# For now, documented as needing base game modification
+
+# Spite - Depletes 2 more PP (total 4 instead of 2)
+class Battle::Move::LowerPPOfTargetLastMoveBy4
+  alias haunted_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    # Change to deplete 6 PP on Haunted Field (4 base + 2 extra)
+    if @battle.has_field? && HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      @pp_reduction = 6
+    else
+      @pp_reduction = 4
+    end
+    
+    haunted_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Ominous Wind - 20% chance to raise all stats (from 10%)
+class Battle::Move::RaiseUserMainStats1
+  alias haunted_pbAdditionalEffect pbAdditionalEffect
+  
+  def pbAdditionalEffect(user, target)
+    if @id == :OMINOUSWIND &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      # 20% chance instead of 10%
+      return if rand(100) >= 20
+      user.pbRaiseStatStage(:ATTACK, 1, user)
+      user.pbRaiseStatStage(:DEFENSE, 1, user)
+      user.pbRaiseStatStage(:SPECIAL_ATTACK, 1, user)
+      user.pbRaiseStatStage(:SPECIAL_DEFENSE, 1, user)
+      user.pbRaiseStatStage(:SPEED, 1, user)
+      return 0
+    end
+    
+    haunted_pbAdditionalEffect(user, target)
+  end
+end
+
+# Fire Spin - 1/6 damage instead of 1/8
+class Battle
+  alias haunted_firespin_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    haunted_firespin_pbEndOfRoundPhase
+    return unless has_field? && HAUNTED_FIELD_IDS.include?(current_field.id)
+    
+    # Fire Spin damage boost from 1/8 to 1/6
+    # Base 1/8 already happened, add extra 1/24
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Trapping] > 0
+      
+      trapping_move = nil
+      if PBEffects.const_defined?(:TrappingMove)
+        trapping_move = battler.effects[PBEffects::TrappingMove]
+      end
+      next unless trapping_move == :FIRESPIN
+      
+      extra_dmg = battler.totalhp / 24
+      battler.pbReduceHP(extra_dmg, false) if extra_dmg > 0
+    end
+  end
+end
+
+# Lick - 100% chance to Paralyze (from 30%)
+class Battle::Move::ParalyzeTarget
+  alias haunted_pbFailsAgainstTarget? pbFailsAgainstTarget?
+  
+  def pbFailsAgainstTarget?(user, target, show_message)
+    if @id == :LICK &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      @haunted_boost = true
+    end
+    
+    haunted_pbFailsAgainstTarget?(user, target, show_message)
+  end
+  
+  alias haunted_pbAdditionalEffect pbAdditionalEffect
+  
+  def pbAdditionalEffect(user, target)
+    if @haunted_boost
+      # 100% chance
+      return 0 if target.pbCanParalyze?(user, false, self)
+      target.pbParalyze(user)
+    end
+    @haunted_boost = nil
+    
+    haunted_pbAdditionalEffect(user, target)
+  end
+end
+
+# Night Shade - 1.5x damage
+# Magic Powder - Puts target to sleep
+# Destiny Bond - No consecutive fail
+# Mean Look and Fire Spin - Target both opponents
+# Bitter Malice - Lower SpAtk
+# Spirit Break - SE vs Ghost
+# (These need move-specific implementations)
+
+# Perish Body - Traps on contact
+Battle::AbilityEffects::OnBeingHit.add(:PERISHBODY,
+  proc { |ability, user, target, move, battle|
+    next if !battle.has_field? || !HAUNTED_FIELD_IDS.include?(battle.current_field.id)
+    next if !move.pbContactMove?(user)
+    next if user.fainted?
+    
+    # Trap the attacker
+    if user.effects[PBEffects::Trapping] <= 0
+      battle.pbShowAbilitySplash(target)
+      user.effects[PBEffects::Trapping] = 5
+      user.effects[PBEffects::TrappingUser] = target.index
+      battle.pbDisplay(_INTL("{1} became trapped by {2}!", user.pbThis, target.pbThis(true)))
+      battle.pbHideAbilitySplash(target)
+    end
+    
+    # Also trigger normal Perish Song effect
+  }
+)
+
+# Cursed Body - Always activates on fainting
+# NOTE: OnFaint handler doesn't exist in v21.1 Essentials
+# This would need to be implemented in the base game's fainting code
+# by checking for Haunted Field and Cursed Body ability, then disabling a random move
+
+# Wandering Spirit - Speed loss per turn
+Battle::Field::EOR_ABILITY_HANDLERS[:WANDERINGSPIRIT] = proc { |battler, battle, field|
+  next unless battler.hasActiveAbility?(:WANDERINGSPIRIT)
+  next unless battler.pbCanLowerStatStage?(:SPEED, battler, nil)
+  battler.pbLowerStatStage(:SPEED, 1, battler, false)
+}
+
+# Shadow Tag - Frisks on entry
+Battle::AbilityEffects::OnSwitchIn.add(:SHADOWTAG,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !HAUNTED_FIELD_IDS.include?(battle.current_field.id)
+    
+    # Frisk all opponents
+    battle.allOtherBattlers(battler.index).each do |b|
+      next if !b.item
+      battle.pbShowAbilitySplash(battler)
+      battle.pbDisplay(_INTL("{1} frisked {2} and found its {3}!",
+                             battler.pbThis, b.pbThis(true), b.itemName))
+      battle.pbHideAbilitySplash(battler)
+    end
+  }
+)
+
+# Rattled - Speed boost on switch-in
+Battle::AbilityEffects::OnSwitchIn.add(:RATTLED,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !HAUNTED_FIELD_IDS.include?(battle.current_field.id)
+    battler.pbRaiseStatStageByAbility(:SPEED, 1, battler)
+  }
+)
+
+# Night Shade - 1.5x damage on Haunted Field
+class Battle::Move::FixedDamageUserLevel
+  alias haunted_pbFixedDamage pbFixedDamage
+  
+  def pbFixedDamage(user, target)
+    dmg = haunted_pbFixedDamage(user, target)
+    
+    # Night Shade deals 1.5x on Haunted Field
+    if @id == :NIGHTSHADE &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      dmg = (dmg * 1.5).round
+    end
+    
+    return dmg
+  end
+end
+
+# Magic Powder - Puts target to sleep on Haunted Field
+class Battle::Move::SetTargetTypesToPsychic
+  alias haunted_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    if @id == :MAGICPOWDER &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      # Put to sleep instead of changing type
+      if target.pbCanSleep?(user, true, self)
+        target.pbSleep
+        return 0
+      end
+      return -1
+    end
+    
+    haunted_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Destiny Bond - No consecutive fail on Haunted Field
+class Battle::Move::AttackerFaintsIfUserFaints
+  alias haunted_pbMoveFailed? pbMoveFailed?
+  
+  def pbMoveFailed?(user, targets)
+    # On Haunted Field, Destiny Bond never fails from consecutive use
+    if @battle.has_field? && HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      # Skip the consecutive use check
+      return false
+    end
+    
+    haunted_pbMoveFailed?(user, targets)
+  end
+end
+
+# Mean Look - Targets both opponents on Haunted Field
+class Battle::Move::TrapTargetInBattle
+  alias haunted_pbFailsAgainstTarget? pbFailsAgainstTarget?
+  
+  def pbFailsAgainstTarget?(user, target, show_message)
+    ret = haunted_pbFailsAgainstTarget?(user, target, show_message)
+    
+    # On Haunted Field with Mean Look, affect all opponents
+    if @id == :MEANLOOK &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      @haunted_multi_target = true
+    end
+    
+    return ret
+  end
+  
+  alias haunted_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    ret = haunted_pbEffectAgainstTarget(user, target)
+    
+    # If multi-target, trap all other opponents too
+    if @haunted_multi_target
+      @battle.allOtherBattlers(user.index).each do |b|
+        next if b.index == target.index
+        next if b.fainted?
+        next if b.effects[PBEffects::MeanLook] >= 0
+        
+        b.effects[PBEffects::MeanLook] = user.index
+        @battle.pbDisplay(_INTL("{1} can't escape now!", b.pbThis))
+      end
+      @haunted_multi_target = nil
+    end
+    
+    return ret
+  end
+end
+
+# Fire Spin - Targets both opponents on Haunted Field
+class Battle::Move::BindTarget
+  alias haunted_pbNumHits pbNumHits
+  
+  def pbNumHits(user, targets)
+    # On Haunted Field, Fire Spin hits all opponents
+    if @id == :FIRESPIN &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      # Make it hit all opponents by modifying targets
+      @haunted_multi = true
+    end
+    
+    haunted_pbNumHits(user, targets)
+  end
+  
+  alias haunted_pbModifyTargets pbModifyTargets
+  
+  def pbModifyTargets(targets, user)
+    # If Fire Spin on Haunted Field, target all opponents
+    if @haunted_multi
+      new_targets = []
+      @battle.allOtherBattlers(user.index).each do |b|
+        new_targets.push(b) unless b.fainted?
+      end
+      @haunted_multi = nil
+      return new_targets unless new_targets.empty?
+    end
+    
+    haunted_pbModifyTargets(targets, user)
+  end
+end
+
+# Bitter Malice - Lower SpAtk on Haunted Field
+# NOTE: This move's function code may not support pbAdditionalEffect
+# Would need to modify the base move code to add SpAtk drop on Haunted Field
+
+# Spirit Break - Super effective vs Ghost on Haunted Field
+class Battle::Move::LowerTargetAtkSpAtk1
+  alias haunted_pbCalcTypeModSingle pbCalcTypeModSingle
+  
+  def pbCalcTypeModSingle(moveType, defType, user, target)
+    ret = haunted_pbCalcTypeModSingle(moveType, defType, user, target)
+    
+    # Spirit Break hits Ghost for super effective on Haunted Field
+    if @id == :SPIRITBREAK &&
+       defType == :GHOST &&
+       @battle.has_field? &&
+       HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
+      return Effectiveness::SUPER_EFFECTIVE_ONE
+    end
+    
+    return ret
+  end
+end
+
+# Resuscitation - Resets stat changes on Haunted Field
+# NOTE: Resuscitation is a custom ability, may not exist in base Essentials
+# If it exists, it would need:
+Battle::AbilityEffects::OnSwitchIn.add(:RESUSCITATION,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !HAUNTED_FIELD_IDS.include?(battle.current_field.id)
+    
+    # Reset all stat stages
+    GameData::Stat.each_battle do |s|
+      battler.stages[s.id] = 0
+    end
+    battle.pbDisplay(_INTL("{1}'s stat changes were reset!", battler.pbThis))
+  }
+) if GameData::Ability.exists?(:RESUSCITATION)
+
+# Power Spot - 1.5x damage boost (already handled in general Power Spot code)
+
+#===============================================================================
+# 24. FOREST FIELD MECHANICS
+# Hardcoded ability and move effects specific to Forest Field
+#===============================================================================
+
+FOREST_FIELD_IDS = %i[forest].freeze
+
+# Overgrow - Always activated (Grass moves 1.5x)
+Battle::AbilityEffects::DamageCalcFromUser.add(:OVERGROW,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if type != :GRASS
+    if user.battle.has_field? && FOREST_FIELD_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 1.5
+    elsif user.hp <= user.totalhp / 3  # Normal Overgrow condition
+      mults[:attack_multiplier] *= 1.5
+    end
+  }
+)
+
+# Swarm - Always activated (Bug moves 1.5x)
+Battle::AbilityEffects::DamageCalcFromUser.add(:SWARM,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if type != :BUG
+    if user.battle.has_field? && FOREST_FIELD_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 1.5
+    elsif user.hp <= user.totalhp / 3  # Normal Swarm condition
+      mults[:attack_multiplier] *= 1.5
+    end
+  }
+)
+
+# Grass Pelt - Defense boost
+Battle::AbilityEffects::DamageCalcFromTarget.add(:GRASSPELT,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !target.battle.has_field? || !FOREST_FIELD_IDS.include?(target.battle.current_field.id)
+    next if !move.physicalMove?(type)
+    mults[:defense_multiplier] *= 1.5
+  }
+)
+
+# Leaf Guard - Status immunity
+Battle::AbilityEffects::StatusImmunity.add(:LEAFGUARD,
+  proc { |ability, battler, status|
+    next true if battler.battle.has_field? && FOREST_FIELD_IDS.include?(battler.battle.current_field.id)
+    next false
+  }
+)
+
+# Sap Sipper - Gradual HP restore
+Battle::AbilityEffects::EndOfRoundHealing.add(:SAPSIPPER,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !FOREST_FIELD_IDS.include?(battle.current_field.id)
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+)
+
+# Effect Spore - 60% activation chance (doubled from 30%)
+Battle::AbilityEffects::OnBeingHit.add(:EFFECTSPORE,
+  proc { |ability, user, target, move, battle|
+    next if !move.pbContactMove?(user)
+    next if user.fainted?
+    
+    # 60% on Forest Field, 30% normally
+    chance = 30
+    if battle.has_field? && FOREST_FIELD_IDS.include?(battle.current_field.id)
+      chance = 60
+    end
+    
+    next if rand(100) >= chance
+    
+    # Random status: Sleep, Paralysis, or Poison
+    r = rand(3)
+    case r
+    when 0
+      next if !user.pbCanSleep?(target, false)
+      battle.pbShowAbilitySplash(target)
+      msg = nil
+      if !Battle::Scene::USE_ABILITY_SPLASH
+        msg = _INTL("{1}'s {2} made {3} fall asleep!", target.pbThis, target.abilityName, user.pbThis(true))
+      end
+      user.pbSleep(msg)
+      battle.pbHideAbilitySplash(target)
+    when 1
+      next if !user.pbCanParalyze?(target, false)
+      battle.pbShowAbilitySplash(target)
+      msg = nil
+      if !Battle::Scene::USE_ABILITY_SPLASH
+        msg = _INTL("{1}'s {2} paralyzed {3}!", target.pbThis, target.abilityName, user.pbThis(true))
+      end
+      user.pbParalyze(msg)
+      battle.pbHideAbilitySplash(target)
+    when 2
+      next if !user.pbCanPoison?(target, false)
+      battle.pbShowAbilitySplash(target)
+      msg = nil
+      if !Battle::Scene::USE_ABILITY_SPLASH
+        msg = _INTL("{1}'s {2} poisoned {3}!", target.pbThis, target.abilityName, user.pbThis(true))
+      end
+      user.pbPoison(target, msg)
+      battle.pbHideAbilitySplash(target)
+    end
+  }
+)
+
+# Strength Sap - Heals 30% more HP
+class Battle::Move::HealUserByTargetAttackLowerTargetAttack1
+  alias forest_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    # On Forest Field, boost healing by 30%
+    if @battle.has_field? && FOREST_FIELD_IDS.include?(@battle.current_field.id)
+      @forest_boost = true
+    end
+    
+    ret = forest_pbEffectAgainstTarget(user, target)
+    @forest_boost = nil
+    return ret
+  end
+  
+  alias forest_pbHealAmount pbHealAmount if method_defined?(:pbHealAmount)
+  
+  def pbHealAmount(user, target)
+    amt = forest_pbHealAmount(user, target) if defined?(forest_pbHealAmount)
+    amt ||= target.attack
+    
+    if @forest_boost
+      amt = (amt * 1.3).round
+    end
+    
+    return amt
+  end
+end
+
+# Ingrain - Healing doubled on Forest Field
+class Battle
+  alias forest_ingrain_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    forest_ingrain_pbEndOfRoundPhase
+    return unless has_field? && FOREST_FIELD_IDS.include?(current_field.id)
+    
+    # Ingrain normally heals 1/16, double to 1/8
+    # Base healing already happened, so add extra 1/16
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Ingrain]
+      next if battler.hp == battler.totalhp
+      
+      extra_heal = battler.totalhp / 16
+      battler.pbRecoverHP(extra_heal)
+    end
+  end
+end
+
+# Infestation - 1/6 damage instead of 1/8
+class Battle
+  alias forest_infestation_pbEndOfRoundPhase pbEndOfRoundPhase
+  
+  def pbEndOfRoundPhase
+    forest_infestation_pbEndOfRoundPhase
+    return unless has_field? && FOREST_FIELD_IDS.include?(current_field.id)
+    
+    # Infestation damage boost from 1/8 to 1/6
+    # Base 1/8 already happened, add extra 1/24
+    allBattlers.each do |battler|
+      next if battler.fainted?
+      next unless battler.effects[PBEffects::Trapping] > 0
+      
+      trapping_move = nil
+      if PBEffects.const_defined?(:TrappingMove)
+        trapping_move = battler.effects[PBEffects::TrappingMove]
+      end
+      next unless trapping_move == :INFESTATION
+      
+      extra_dmg = battler.totalhp / 24
+      battler.pbReduceHP(extra_dmg, false) if extra_dmg > 0
+    end
+  end
+end
+
+# Nature's Madness - 75% HP damage
+class Battle::Move::LowerTargetHPToUserHP
+  alias forest_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    if @id == :NATURESMADNESS &&
+       @battle.has_field? &&
+       FOREST_FIELD_IDS.include?(@battle.current_field.id)
+      # Deal 75% HP damage
+      dmg = (target.hp * 3 / 4.0).round
+      target.pbReduceHP(dmg, false)
+      return 0
+    end
+    
+    forest_pbEffectAgainstTarget(user, target)
+  end
+end
+
+# Heal Order - 66% HP
+class Battle::Move::HealUserHalfOfTotalHP
+  alias forest_pbHealAmount pbHealAmount if method_defined?(:pbHealAmount)
+  
+  def pbHealAmount(user)
+    if @id == :HEALORDER &&
+       @battle.has_field? &&
+       FOREST_FIELD_IDS.include?(@battle.current_field.id)
+      return (user.totalhp * 2 / 3.0).round
+    end
+    
+    return forest_pbHealAmount(user) if defined?(forest_pbHealAmount)
+    return user.totalhp / 2
+  end
+end
+
+# Forest's Curse - Additionally curses the target
+class Battle::Move::AddGrassTypeToTarget
+  alias forest_pbEffectAgainstTarget pbEffectAgainstTarget
+  
+  def pbEffectAgainstTarget(user, target)
+    ret = forest_pbEffectAgainstTarget(user, target)
+    
+    # On Forest Field, also curse the target
+    if @battle.has_field? && FOREST_FIELD_IDS.include?(@battle.current_field.id)
+      target.effects[PBEffects::Curse] = true
+      @battle.pbDisplay(_INTL("{1} was cursed!", target.pbThis))
+    end
+    
+    return ret
+  end
+end
+
+# Sticky Web - Effect doubled (Speed -2 instead of -1)
+class Battle::Battler
+  alias forest_pbCheckEntryHazards pbCheckEntryHazards if method_defined?(:pbCheckEntryHazards)
+  alias forest_pbOwnSide pbOwnSide
+  
+  def pbOwnSide
+    side = forest_pbOwnSide
+    
+    # Check for Sticky Web on Forest Field after switch-in
+    if @battle.has_field? && 
+       FOREST_FIELD_IDS.include?(@battle.current_field.id) &&
+       side.effects[PBEffects::StickyWeb] &&
+       !@effects[PBEffects::StickyWeb] &&
+       !airborne?
+      # Lower Speed by extra 1 stage (on top of base -1)
+      @forest_sticky_web_boost = true
+    end
+    
+    return side
+  end
+  
+  alias forest_pbLowerStatStage pbLowerStatStage
+  
+  def pbLowerStatStage(stat, increment, user, show_messages = true, ignore_contrary = false)
+    # Boost Sticky Web effect if flagged
+    if @forest_sticky_web_boost && stat == :SPEED
+      increment += 1  # Make it -2 instead of -1
+      @forest_sticky_web_boost = nil
+    end
+    
+    forest_pbLowerStatStage(stat, increment, user, show_messages, ignore_contrary)
+  end
+end
+
+#===============================================================================
+# 23. DARK CRYSTAL CAVERN MECHANICS
+# Dark and Ghost type passive defense boost
+# Shadow Shield damage reduction, Prism Armor defense boost
+#===============================================================================
+
+DARK_CRYSTAL_CAVERN_IDS = %i[darkcrystalcavern].freeze
+
+# Dark and Ghost types get 1.5x Defense and Sp.Def
+class Battle::Move
+  alias dark_crystal_type_def_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    dark_crystal_type_def_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    
+    # Dark and Ghost types get defensive boost
+    return unless @battle.has_field? && DARK_CRYSTAL_CAVERN_IDS.include?(@battle.current_field.id)
+    return unless target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
+    
+    # 1.5x defense = reduce damage by ~33%
+    multipliers[:final_damage_multiplier] /= 1.5
+  end
+end
+
+# Shadow Shield - Take 0.75x damage (25% reduction)
+Battle::AbilityEffects::DamageCalcFromTarget.add(:SHADOWSHIELD,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !target.battle.has_field? || !DARK_CRYSTAL_CAVERN_IDS.include?(target.battle.current_field.id)
+    mults[:final_damage_multiplier] *= 0.75
+  }
+)
+
+# Prism Armor - 33% increased defenses (same as Crystal Cavern)
+# Already implemented in Section 22
+
+# Moonlight - Restores 75% HP on Dark Crystal Cavern
+# Synthesis/Morning Sun - Restore 25% HP on Dark Crystal Cavern
+# Hook into the healing move's recovery calculation
+class Battle::Battler
+  alias dark_crystal_healing_pbRecoverHP pbRecoverHP
+  
+  def pbRecoverHP(amt, anim = true)
+    # Check if this is healing from Moonlight/Synthesis/Morning Sun on Dark Crystal Cavern
+    if @battle.respond_to?(:pbGetMoveIndexFromID)
+      current_move = @battle.choices[@index] ? @battle.choices[@index][2] : nil
+      if current_move && @battle.has_field? && DARK_CRYSTAL_CAVERN_IDS.include?(@battle.current_field.id)
+        if current_move.id == :MOONLIGHT
+          # Change heal to 75%
+          amt = (@totalhp * 3 / 4.0).round
+        elsif [:SYNTHESIS, :MORNINGSUN].include?(current_move.id)
+          # Change heal to 25%
+          amt = (@totalhp / 4.0).round
+        end
+      end
+    end
+    
+    dark_crystal_healing_pbRecoverHP(amt, anim)
+  end
+end
+
+# Solar Beam/Solar Blade - Always fail (in damageMods as 0x)
+
+#===============================================================================
+# 22. CRYSTAL CAVERN MECHANICS
+# Random type selection for various effects
+#===============================================================================
+
+CRYSTAL_CAVERN_IDS = %i[crystalcavern].freeze
+CRYSTAL_RANDOM_TYPES = [:FIRE, :WATER, :GRASS, :PSYCHIC].freeze
+
+# Rock-type moves randomly gain Fire/Water/Grass/Psychic typing and 1.5x boost
+# Hook into type calculation
+class Battle::Move
+  alias crystal_pbCalcType pbCalcType
+  
+  def pbCalcType(user)
+    original_type = crystal_pbCalcType(user)
+    
+    # On Crystal Cavern, Rock moves and specific moves get random crystal typing
+    if @battle.has_field? && CRYSTAL_CAVERN_IDS.include?(@battle.current_field.id)
+      if original_type == :ROCK ||
+         [:JUDGMENT, :STRENGTH, :ROCKCLIMB, :MULTIATTACK, :PRISMATICLASER].include?(@id)
+        # Store the random type so it's consistent for the whole move execution
+        @crystal_type ||= CRYSTAL_RANDOM_TYPES.sample
+        return @crystal_type
+      end
+    end
+    
+    return original_type
+  end
+  
+  # Reset crystal type after move
+  alias crystal_pbEndOfMoveUsageEffect pbEndOfMoveUsageEffect
+  
+  def pbEndOfMoveUsageEffect(user, targets, numHits, switchedBattlers)
+    crystal_pbEndOfMoveUsageEffect(user, targets, numHits, switchedBattlers)
+    @crystal_type = nil
+  end
+end
+
+# Prism Armor - 33% increased defenses
+Battle::AbilityEffects::DamageCalcFromTarget.add(:PRISMARMOR,
+  proc { |ability, user, target, move, mults, baseDmg, type|
+    next if !target.battle.has_field? || !CRYSTAL_CAVERN_IDS.include?(target.battle.current_field.id)
+    # 33% defense boost = reduce damage by ~25%
+    mults[:defense_multiplier] *= 1.33
+  }
+)
+
+# Mimicry - Changes to random type (Fire/Water/Grass/Psychic)
+# This needs to hook into Mimicry's form/type change
+# NOTE: Needs manual implementation to randomize Mimicry type change
+
+# Camouflage - Random type
+class Battle::Move::SetUserTypesBasedOnEnvironment
+  alias crystal_pbEffectGeneral pbEffectGeneral
+  
+  def pbEffectGeneral(user)
+    if @battle.has_field? && CRYSTAL_CAVERN_IDS.include?(@battle.current_field.id)
+      new_type = CRYSTAL_RANDOM_TYPES.sample
+      user.pbChangeTypes(new_type)
+      type_name = GameData::Type.get(new_type).name
+      @battle.pbDisplay(_INTL("{1} transformed into the {2} type!", user.pbThis, type_name))
+      return 0
+    end
+    
+    crystal_pbEffectGeneral(user)
+  end
+end
+
+# Mimicry - Changes to random type (Fire/Water/Grass/Psychic)
+Battle::AbilityEffects::OnSwitchIn.add(:MIMICRY,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CRYSTAL_CAVERN_IDS.include?(battle.current_field.id)
+    new_type = CRYSTAL_RANDOM_TYPES.sample
+    battler.pbChangeTypes(new_type)
+    type_name = GameData::Type.get(new_type).name
+    battle.pbDisplay(_INTL("{1}'s Mimicry changed it to the {2} type!", battler.pbThis, type_name))
+  }
+)
+
+# Terrain Pulse - Random type on Crystal Cavern
+# Function code TypeDependsOnUserMorpekoFormTerrainTypeForBattlers
+class Battle::Move
+  alias crystal_terrainpulse_pbBaseType pbBaseType
+  
+  def pbBaseType(user)
+    if @id == :TERRAINPULSE && 
+       @battle.has_field? && 
+       CRYSTAL_CAVERN_IDS.include?(@battle.current_field.id)
+      return CRYSTAL_RANDOM_TYPES.sample
+    end
+    
+    crystal_terrainpulse_pbBaseType(user)
+  end
+end
+
+# Secret Power - Random status (Burn/Freeze/Sleep/Confusion)
+class Battle::Move::EffectDependsOnEnvironment
+  alias crystal_pbAdditionalEffect pbAdditionalEffect
+  
+  def pbAdditionalEffect(user, target)
+    if @battle.has_field? && CRYSTAL_CAVERN_IDS.include?(@battle.current_field.id)
+      # Random status effect
+      roll = rand(4)
+      case roll
+      when 0
+        target.pbBurn(user) if target.pbCanBurn?(user, false, self)
+      when 1
+        target.pbFreeze if target.pbCanFreeze?(user, false, self)
+      when 2
+        target.pbSleep if target.pbCanSleep?(user, false, self)
+      when 3
+        target.pbConfuse if target.pbCanConfuse?(user, false, self)
+      end
+      return 0
+    end
+    
+    crystal_pbAdditionalEffect(user, target)
+  end
+end
+
+# Stealth Rock - Random type damage on Crystal Cavern
+# Hook into the entry hazard damage method
+class Battle::Battler
+  alias crystal_pbItemHPHealCheck pbItemHPHealCheck
+  
+  def pbItemHPHealCheck
+    # This is called during switch-in after hazards
+    # We need to intercept Stealth Rock damage specifically
+    crystal_pbItemHPHealCheck
+  end
+end
+
+# NOTE: Stealth Rock random type damage on Crystal Cavern would need to hook into
+# the base game's entry hazard code, which varies by Essentials version.
+# The implementation would check @battle.has_field? && CRYSTAL_CAVERN_IDS and
+# randomly select a type from CRYSTAL_RANDOM_TYPES for damage calculation.
+
+#===============================================================================
 # 21. VOLCANIC TOP FIELD MECHANICS
 # Volcanic Top shares most mechanics with Volcanic field (Section 13)
 # Additional mechanics specific to Volcanic Top
@@ -1227,20 +3185,22 @@ class Battle::Move::PoisonTarget
 end
 
 # Outrage/Thrash/Petal Dance - Fatigue after single turn
-# Hook into the rampage continuation check
-class Battle::Battler
-  alias volcanictop_pbContinueAttack pbContinueAttack
+# Hook into end of round to force rampage to end after just 1 turn
+class Battle
+  alias volcanictop_rampage_pbEndOfRoundPhase pbEndOfRoundPhase
   
-  def pbContinueAttack
-    # On Volcanic Top, immediately end rampage moves
-    if @battle.has_field? && 
-       VOLCANIC_TOP_IDS.include?(@battle.current_field.id) &&
-       @effects[PBEffects::Outrage] > 0
-      @effects[PBEffects::Outrage] = 0
-      return false
+  def pbEndOfRoundPhase
+    # Before normal EOR processing, check for rampage moves on Volcanic Top
+    if has_field? && VOLCANIC_TOP_IDS.include?(current_field.id)
+      allBattlers.each do |battler|
+        # If in a rampage that just started this turn (counter > 1), force it to end
+        if battler.effects[PBEffects::Outrage] > 1
+          battler.effects[PBEffects::Outrage] = 1
+        end
+      end
     end
     
-    return volcanictop_pbContinueAttack
+    volcanictop_rampage_pbEndOfRoundPhase
   end
 end
 

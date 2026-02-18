@@ -673,6 +673,13 @@ FIELDEFFECTS = {
 	:secretPower => "ACID",
 	:naturePower => :ACIDSPRAY,
 	:mimicry => :POISON,
+	# Abilities (section 34 - very brief)
+	:abilityActivate => {
+		:POISONHEAL => {},
+		:TOXICBOOST => {},
+		:MERCILESS  => {},
+		:CORROSION  => {},
+	},
 	:damageMods => {
 		1.5 => [:SMACKDOWN, :MUDSLAP, :MUDSHOT, :MUDBOMB, :MUDDYWATER, :WHIRLPOOL, :THOUSANDARROWS, :APPLEACID],
 		2.0 => [:ACID, :ACIDSPRAY, :GRASSKNOT, :SNAPTRAP],
@@ -723,6 +730,19 @@ FIELDEFFECTS = {
 	:secretPower => "ACIDSPRAY",
 	:naturePower => :VENOSHOCK,
 	:mimicry => :POISON,
+	# Abilities (section 33)
+	:abilityActivate => {
+		:POISONHEAL    => {},
+		:TOXICBOOST    => {},
+		:MERCILESS     => {},
+		:WATERCOMPACTION => {},
+		:CORROSION     => {},
+	},
+	# Move stat mods
+	:moveStatStageMods => {
+		:ACIDARMOR => { stats_override: { :DEFENSE => 2 } },
+		:SMOKESCREEN => { stages: 2 },
+	},
 	:damageMods => {
 		1.5 => [:BUBBLEBEAM, :ACIDSPRAY, :BUBBLE, :SMOG, :CLEARSMOG, :SPARKLINGARIA],
 	},
@@ -782,6 +802,17 @@ FIELDEFFECTS = {
 	:secretPower => "SANDTOMB",
 	:naturePower => :SANDTOMB,
 	:mimicry => :GROUND,
+	# Weather duration extended
+	:weatherDuration => {
+		:Sun => 8,
+		:HarshSun => 8,
+		:Sandstorm => 8,
+	},
+	# Abilities (section 35)
+	:abilityActivate => {
+		:SOLARPOWER  => {},
+		:CHLOROPHYLL => {},
+	},
 	:damageMods => {
 		1.5 => [:NEEDLEARM, :PINMISSILE, :DIG, :SANDTOMB, :HEATWAVE, :THOUSANDWAVES, :BURNUP, :SEARINGSUNRAZESMASH, :SOLARBLADE, :SOLARBEAM, :SCALD, :STEAMERUPTION, :SANDSEARSTORM,:BONECLUB, :BONERUSH, :BONEMERANG, :SHADOWBONE,:SCORCHINGSANDS],
 		0 => [:SOAK, :AQUARING, :LIFEDEW],
@@ -926,13 +957,13 @@ FIELDEFFECTS = {
 },
 :ROCKY => {
 	:name => "Rocky Field",
-	:fieldMessage => [
-		"The field is littered with rocks."
-	],
+	:fieldMessage => ["The field is littered with rocks."],
 	:graphic => ["Rocky"],
 	:secretPower => "ROCKTHROW",
 	:naturePower => :ROCKSMASH,
 	:mimicry => :ROCK,
+	:abilityActivate => { :ROCKHEAD => {}, :STURDY => {}, :STEADFAST => {} },
+	:moveStatStageMods => { :ROCKPOLISH => { stats_override: { :SPEED => 4 } } },
 	:damageMods => {
 		1.5 => [:ROCKCLIMB, :STRENGTH, :MAGNITUDE, :EARTHQUAKE, :BULLDOZE, :ACCELEROCK],
 		2.0 => [:ROCKSMASH],
@@ -982,6 +1013,19 @@ FIELDEFFECTS = {
 	:secretPower => "WOODHAMMER",
 	:naturePower => :WOODHAMMER,
 	:mimicry => :BUG,
+	# Abilities activated on Forest Field
+	:abilityActivate => {
+		:OVERGROW   => {},  # Always active (hardcoded in section 24)
+		:SWARM      => {},  # Always active (hardcoded in section 24)
+		:GRASSPELT  => {},  # Defense boost (hardcoded in section 24)
+		:LEAFGUARD  => {},  # Status immunity (hardcoded in section 24)
+		:SAPSIPPER  => {},  # Gradual HP restore EOR (hardcoded in section 24)
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:GROWTH => { stats_override: { :ATTACK => 2, :SPECIAL_ATTACK => 2 }, message: "The forest nurtured massive growth!" },
+		:DEFENDORDER => { stats_override: { :DEFENSE => 2, :SPECIAL_DEFENSE => 2 }, message: "The forest bolstered the defense!" },
+	},
 	:damageMods => {
 		0.5 => [:SURF, :MUDDYWATER],
 		1.5 => [:GRAVAPPLE, :ATTACKORDER, :ELECTROWEB, :SLASH, :AIRSLASH, :FURYCUTTER, :AIRCUTTER, :PSYCHOCUT, :BREAKINGSWIPE],
@@ -1402,6 +1446,34 @@ FIELDEFFECTS = {
 	:secretPower => "AQUAJET",
 	:naturePower => :WHIRLPOOL,
 	:mimicry => :WATER,
+	# Abilities activated on Water Surface
+	:abilityActivate => {
+		:SWIFTSWIM      => {},  # Speed 2x (hardcoded section 30)
+		:HYDRATION      => {},  # Cures status EOR (hardcoded section 30)
+		:TORRENT        => {},  # Always active (hardcoded section 30)
+		:SURGESURFER    => {},  # Speed 2x (hardcoded section 30)
+		:WATERVEIL      => {},  # Cures all status (hardcoded section 30)
+		:DRYSKIN        => {},  # Gradual HP restore (hardcoded section 30)
+		:WATERABSORB    => {},  # Gradual HP restore (hardcoded section 30)
+		:WATERCOMPACTION => {},  # Each turn activation (hardcoded section 30)
+		:STEAMENGINE    => {},  # Speed +1 EOR (hardcoded section 30)
+		:SCHOOLING      => {},  # Always active (hardcoded section 30)
+		:GULPMISSILE    => {},  # Always Arrokuda (hardcoded section 30)
+	},
+	# Ability modifications
+	:abilityMods => {
+		:PROPELLERTAIL => { priority_boost: 1.5 },  # Priority moves 1.5x
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:TAKEHEART => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "The water cleansed {1} and boosted Sp. Atk!" },
+		:SPLASH => { target_effect: :lower_accuracy, message: "{1} splashed water in the opponent's face!" },
+	},
+	# No charging moves
+	:noCharging => [:DIVE],
+	:noChargingMessages => {
+		:DIVE => "The shallow water allowed instant diving!",
+	},
 	:damageMods => {
 		1.2 => [:WHIRLPOOL, :SURF, :MUDDYWATER, :WHIRLPOOL, :DIVE, :SLUDGEWAVE, :OCTAZOOKA, :ORIGINPULSE, :HYDROVORTEX],
 		0 => [:SPIKES, :TOXICSPIKES],
@@ -1471,6 +1543,18 @@ FIELDEFFECTS = {
 	:secretPower => "AQUATAIL",
 	:naturePower => :WATERPULSE,
 	:mimicry => :WATER,
+	# No charging
+	:noCharging => [:DIVE],
+	# Abilities (same as Water Surface mostly)
+	:abilityActivate => {
+		:SWIFTSWIM   => {},
+		:TORRENT     => {},
+		:HYDRATION   => {},
+		:SURGESURFER => {},
+		:WATERVEIL   => {},
+		:DRYSKIN     => {},
+		:WATERABSORB => {},
+	},
 	:damageMods => {
 		1.5 => [:WATERPULSE],
 		2.0 => [:ANCHORSHOT, :DRAGONDARTS, :SLUDGEWAVE, :ACIDDOWNPOUR],
@@ -1682,7 +1766,15 @@ FIELDEFFECTS = {
 	:graphic => ["CrystalCavern"],
 	:secretPower => "POWERGEM",
 	:naturePower => :POWERGEM,
-	:mimicry => :DRAGON,
+	:mimicry => :DRAGON,  # Randomly Fire/Water/Grass/Psychic (hardcoded in section 22)
+	# Ability modifications
+	:abilityMods => {
+		:PRISMARMOR => { defense_boost: 1.33 },  # 33% increased defenses
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:ROCKPOLISH => { additional_stats: { :ATTACK => 1, :SPECIAL_ATTACK => 1 }, message: "The crystals enhanced Rock Polish! Speed rose sharply and Attack and Sp. Atk rose!" },
+	},
 	:damageMods => {
 		1.3 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :DAZZLINGGLEAM, :MIRRORSHOT, :TECHNOBLAST, :DOOMDUMMY, :MOONGEISTBEAM, :PHOTONGEYSER, :MENACINGMOONRAZEMAELSTROM],
 		1.5 => [:POWERGEM, :DIAMONDSTORM, :ANCIENTPOWER, :JUDGMENT, :ROCKSMASH, :ROCKTOMB, :STRENGTH, :ROCKCLIMB, :MULTIATTACK, :PRISMATICLASER, :LUSTERPURGE],
@@ -1730,6 +1822,86 @@ FIELDEFFECTS = {
 		:animation => :MAGICCOAT,
 		:stats => {
 			:SPECIAL_ATTACK => 1,
+		},
+	},
+},
+:DARKCRYSTALCAVERN => {
+	:name => "Dark Crystal Cavern",
+	:fieldMessage => [
+		"Darkness is gathering..."
+	],
+	:graphic => ["DarkCrystalCavern"],
+	:secretPower => "DARKPULSE",
+	:naturePower => :DARKPULSE,
+	:mimicry => :DARK,
+	# Ability modifications
+	:abilityMods => {
+		:PRISMARMOR => { defense_boost: 1.33 },  # 33% increased defenses
+		:SHADOWSHIELD => { damage_reduction: 0.75 },  # Take 0.75x damage
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:FLASH => { stages: 2, message: "The darkness amplified Flash! {1}'s accuracy harshly fell!" },
+		:SYNTHESIS => { heal_percent: 0.25, message: "{1} barely absorbed any light!" },
+		:MORNINGSUN => { heal_percent: 0.25, message: "{1} barely absorbed any light!" },
+		:MOONLIGHT => { heal_percent: 0.75, message: "The moonlight was strengthened by darkness!" },
+	},
+	:damageMods => {
+		1.5 => [:DARKPULSE, :NIGHTDAZE, :NIGHTSLASH, :SHADOWBALL, :SHADOWCLAW, :SHADOWFORCE, :SHADOWSNEAK, :SHADOWPUNCH, 
+		        :AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT, :DOOMDUMMY, 
+		        :TECHNOBLAST, :POWERGEM, :MOONGEISTBEAM, :SHADOWBONE, :PHOTONGEYSER, :DIAMONDSTORM, :BLACKHOLEECLIPSE, 
+		        :MENACINGMOONRAZEMAELSTROM, :MIRRORBEAM],
+		2.0 => [:PRISMATICLASER],
+		0 => [:SOLARBEAM, :SOLARBLADE],
+	},
+	:accuracyMods => {
+		100 => [:DARKVOID],
+	},
+	:moveMessages => {
+		"The darkness strengthened the attack!" => [:DARKPULSE, :NIGHTDAZE, :NIGHTSLASH, :SHADOWBALL, :SHADOWCLAW, :SHADOWFORCE, :SHADOWSNEAK, :SHADOWPUNCH],
+		"The crystals' darkness charged the attack!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT, :DOOMDUMMY, :TECHNOBLAST, :POWERGEM, :MOONGEISTBEAM, :SHADOWBONE, :PHOTONGEYSER, :DIAMONDSTORM, :BLACKHOLEECLIPSE, :MENACINGMOONRAZEMAELSTROM, :MIRRORBEAM],
+		"The attack was supercharged by the dark crystals!" => [:PRISMATICLASER],
+		"The darkness prevented the solar attack!" => [:SOLARBEAM, :SOLARBLADE],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:moveEffects => {
+		"@battle.field_counters.counter += 1" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE],
+		"@battle.field_counters.counter = 2" => [:TECTONICRAGE],
+	},
+	:typeBoosts => {},
+	:typeMessages => {},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {
+		:CAVE => "@battle.field_counters.counter > 1",
+	},
+	:fieldChange => {
+		:CAVE => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
+	},
+	:weatherFieldChange => {
+		:CRYSTALCAVERN => {
+			weather: [:Sun, :HarshSun],
+			messages: {
+				:Sun => "The sunlight dispelled the darkness!",
+				:HarshSun => "The harsh sunlight dispelled the darkness!"
+			}
+		}
+	},
+	:dontChangeBackup => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
+	:changeMessage => {
+		"The dark crystals were broken up!" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE],
+	},
+	:statusMods => [:FLASH, :AURORAVEIL, :SYNTHESIS, :MORNINGSUN, :MOONLIGHT],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => :MagicCoat,
+		:duration => true,
+		:message => "{1} shrouded itself with Magic Coat!",
+		:animation => :MAGICCOAT,
+		:stats => {
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -1807,6 +1979,22 @@ FIELDEFFECTS = {
 	:secretPower => "ROCKBLAST",
 	:naturePower => :ROCKSLIDE,
 	:mimicry => :ROCK,
+	# Weather duration extended
+	:weatherDuration => {
+		:Sun => 8,
+		:HarshSun => 8,
+	},
+	# Abilities activated/modified on Mountain Field
+	:abilityActivate => {
+		:GALEWINGS => { during_strong_winds: true },  # Active during Strong Winds
+		:LONGREACH => {},  # 1.5x damage (hardcoded section 27)
+	},
+	# Ability modifications
+	:abilityMods => {
+		:AERILATE => { multiplier: 1.5 },
+	},
+	# Tailwind lasts 6 turns and creates Strong Winds (same as Volcanic Top)
+	:statusMods => [:TAILWIND, :SUNNYDAY],
 	:damageMods => {
 		1.5 => [:VITALTHROW, :CIRCLETHROW, :STORMTHROW, :OMINOUSWIND, :ICYWIND, :SILVERWIND, :TWISTER, :RAZORWIND, :FAIRYWIND, :THUNDER, :ERUPTION, :AVALANCHE, :HYPERVOICE, :MOUNTAINGALE],
 	},
@@ -1866,6 +2054,30 @@ FIELDEFFECTS = {
 	:secretPower => "ICEBALL",
 	:naturePower => :AVALANCHE,
 	:mimicry => :ICE,
+	# Weather duration extended
+	:weatherDuration => {
+		:Sun => 8,
+		:HarshSun => 8,
+		:Hail => 8,
+		:Snow => 8,
+	},
+	# Abilities activated/modified on Snowy Mountain Field
+	:abilityActivate => {
+		:GALEWINGS => { during_strong_winds: true },  # Active during Strong Winds
+		:SLUSHRUSH => {},  # Activated in hail (hardcoded section 28)
+		:ICEBODY => {},  # Activated in hail (hardcoded section 28)
+		:SNOWCLOAK => {},  # Activated in hail (hardcoded section 28)
+		:LONGREACH => {},  # 1.5x damage (hardcoded section 28)
+		:BALLFETCH => {},  # Gets Snowballs (hardcoded section 28)
+	},
+	# Ability modifications
+	:abilityMods => {
+		:REFRIGERATE => { multiplier: 1.5 },
+		:AERILATE => { multiplier: 1.5 },
+		:ICESCALES => { ignore_ice_weakness: true },  # Ignores Ice weakness (hardcoded section 28)
+	},
+	# Aurora Veil enabled
+	:statusMods => [:TAILWIND, :SUNNYDAY, :HAIL, :AURORAVEIL, :BITTERMALICE],
 	:damageMods => {
 		1.5 => [:VITALTHROW, :CIRCLETHROW, :STORMTHROW, :OMINOUSWIND, :SILVERWIND, :TWISTER, :RAZORWIND, :FAIRYWIND, :AVALANCHE, :POWDERSNOW, :HYPERVOICE, :GLACIATE, :MOUNTAINGALE, :BITTERMALICE],
 		0.5 => [:SCALD, :STEAMERUPTION],
@@ -1933,6 +2145,18 @@ FIELDEFFECTS = {
 	:secretPower => "DAZZLINGGLEAM",
 	:naturePower => :JUDGMENT,
 	:mimicry => :NORMAL,
+	# Abilities activated/modified on Blessed Field
+	:abilityActivate => {
+		:JUSTIFIED => {},  # Effect doubled (hardcoded section 26)
+		:CURSEDBODY => { disabled: true },  # Has no effect
+		:PERISHBODY => { disabled: true },  # Has no effect
+		:RKSSYSTEM  => {},  # Always Dark type (hardcoded section 26)
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:COSMICPOWER => { stats_override: { :DEFENSE => 2, :SPECIAL_DEFENSE => 2 }, message: "The blessing enhanced Cosmic Power!" },
+		:MIRACLEEYE => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "Miracle Eye boosted Sp. Atk!" },
+	},
 	:damageMods => {
 		1.3 => [:PSYSTRIKE, :AEROBLAST, :ORIGINPULSE, :DOOMDUMMY, :MISTBALL, :CRUSHGRIP, :LUSTERPURGE, :SECRETSWORD, :PSYCHOBOOST, :RELICSONG, :SPACIALREND, :HYPERSPACEHOLE, :ROAROFTIME, :LANDSWRATH, :PRECIPICEBLADES, :DRAGONASCENT, :MOONGEISTBEAM, :SUNSTEELSTRIKE, :PRISMATICLASER, :FLEURCANNON, :DIAMONDSTORM, :GENESISSUPERNOVA, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM, :BEHEMOTHBLADE, :BEHEMOTHBASH, :ETERNABEAM, :DYNAMAXCANNON],
 		1.5 => [:MYSTICALFIRE, :MAGICALLEAF, :ANCIENTPOWER, :JUDGMENT, :SACREDFIRE, :EXTREMESPEED, :SACREDSWORD, :RETURN],
@@ -2576,6 +2800,24 @@ FIELDEFFECTS = {
 	:secretPower => "SHADOWCLAW",
 	:naturePower => :PHANTOMFORCE,
 	:mimicry => :GHOST,
+	# Abilities activated/modified on Haunted Field
+	:abilityActivate => {
+		:PERISHBODY  => {},  # Traps on contact (hardcoded section 25)
+		:CURSEDBODY  => {},  # Always activates on fainting (hardcoded section 25)
+		:WANDERINGSPIRIT => {},  # Speed loss per turn (hardcoded section 25)
+		:SHADOWTAG   => {},  # Frisks on entry (hardcoded section 25)
+		:RATTLED     => {},  # Speed boost on entry (hardcoded section 25)
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:SCARYFACE => { stages: 4, message: "The haunted atmosphere made it terrifying! {1}'s Speed harshly fell!" },
+	},
+	# No charging moves (Phantom Force, Shadow Force become 1-turn)
+	:noCharging => [:PHANTOMFORCE, :SHADOWFORCE],
+	:noChargingMessages => {
+		:PHANTOMFORCE => "The spirits guided the strike instantly!",
+		:SHADOWFORCE => "The shadows struck immediately!",
+	},
 	:damageMods => {
 		1.5 => [:FLAMEBURST, :INFERNO, :FLAMECHARGE, :FIRESPIN, :BONECLUB, :BONERUSH, :BONEMERANG, :ASTONISH],
 		1.2 => [:SHADOWBONE],
@@ -2637,6 +2879,18 @@ FIELDEFFECTS = {
 	:secretPower => "POISONJAB",
 	:naturePower => :GUNKSHOT,
 	:mimicry => :POISON,
+	# Abilities (section 32)
+	:abilityActivate => {
+		:POISONHEAL  => {},
+		:POISONTOUCH => {},
+		:POISONPOINT => {},
+		:CORROSION   => {},
+	},
+	# Move modifications
+	:moveStatStageMods => {
+		:TARSHOT => { additional_effect: :poison },
+		:TOXICTHREAD => { badly_poison: true },
+	},
 	:damageMods => {
 		1.5 => [:SEEDFLARE, :APPLEACID],
 	},
@@ -2948,6 +3202,38 @@ FIELDEFFECTS = {
 	:secretPower => "SMOG",
 	:naturePower => :BEATUP,
 	:mimicry => :STEEL,
+	# Passive healing reduction
+	:healingReduction => 0.67,  # 33% reduction (multiply by 0.67)
+	# Abilities activated/modified on Back Alley Field
+	:abilityActivate => {
+		:PICKPOCKET   => {},  # Attack +1 on switch-in (hardcoded section 30)
+		:MERCILESS    => {},  # Attack +1 on switch-in (hardcoded section 30)
+		:MAGICIAN     => {},  # Sp.Atk +1 on switch-in (hardcoded section 30)
+		:ANTICIPATION => {},  # Def/SpDef +1 on switch-in (hardcoded section 30)
+		:FOREWARN     => {},  # Def/SpDef +1 on switch-in (hardcoded section 30)
+		:RATTLED      => {},  # Speed +1 on switch-in (hardcoded section 30)
+		:FRISK        => {},  # Steals item if user has none (hardcoded section 30)
+	},
+	# Ability modifications
+	:abilityMods => {
+		:DEFIANT     => { stages_bonus: 1 },  # Raises Attack by extra stage
+		:STENCH      => { activation_double: true },  # Doubled activation rate
+		:HUSTLE      => { accuracy_reduction: 0.67, attack_boost: 1.75 },  # Same as City
+		:DOWNLOAD    => { boost_double: true },  # Doubled boost
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:SMOKESCREEN => { stages: 2, message: "The smoke fills the alley!" },
+		:NASTYPLOT   => { stages: 4, message: "A devious plan!" },
+		:SNARL       => { stages: 2, message: "An intimidating snarl!" },
+		:PARTINGSHOT => { stats_override: { :ATTACK => -2, :SPECIAL_ATTACK => -2 } },
+		:FAKETEARS   => { stages: 3, message: "Crocodile tears!" },
+		:PURSUIT     => { speed_boost_on_ko: true },
+		:TRICK       => { stat_swap_effect: true },
+		:SWITCHEROO  => { stat_swap_effect: true },
+		:SNATCH      => { random_stat_boost_2: true },
+		:CORROSIVEGAS => { additional_effect: :lower_all_stats },
+	},
 	:damageMods => {
 		1.5 => [:STEAMROLLER, :SMOG, :BEATUP, :PAYDAY, :INFESTATION, :SPECTRALTHIEF, :FIRSTIMPRESSION, :TECHNOBLAST, :SHADOWSNEAK,
 			:XSCISSOR, :FURYCUTTER, :NIGHTSLASH, :SACREDSWORD, :AIRSLASH, :AERIALACE, :AIRCUTTER, :LEAFBLADE, :RAZORLEAF, :SLASH, :CUT, :CROSSPOISON, :PSYCHOCUT, :RAZORSHELL, :SOLARBLADE, :BEHEMOTHBLADE, :CEASELESSEDGE, :STONEAXE, :AQUACUTTER,
@@ -3018,6 +3304,30 @@ FIELDEFFECTS = {
 	:secretPower => "SMOG",
 	:naturePower => :SMOG,
 	:mimicry => :NORMAL,
+	# Abilities activated/modified on City Field
+	:abilityActivate => {
+		:EARLYBIRD => {},  # Attack +1 on switch-in (hardcoded section 29)
+		:PICKUP    => {},  # Speed +1 on switch-in (hardcoded section 29)
+		:BIGPECKS  => {},  # Defense +1 on switch-in (hardcoded section 29)
+		:RATTLED   => {},  # Speed +1 on switch-in (hardcoded section 29)
+		:FRISK     => {},  # Lower opponent Sp.Def (hardcoded section 29)
+	},
+	# Ability modifications
+	:abilityMods => {
+		:COMPETITIVE => { stages_bonus: 1 },  # Raises Sp.Atk by extra stage
+		:STENCH      => { activation_double: true },  # Doubled activation rate
+		:HUSTLE      => { accuracy_reduction: 0.67, attack_boost: 1.75 },  # Custom effect
+		:DOWNLOAD    => { boost_double: true },  # Doubled boost
+	},
+	# Move stat stage modifiers
+	:moveStatStageMods => {
+		:SMOKESCREEN => { stages: 2, message: "The city smog amplified Smokescreen!" },
+		:WORKUP      => { stats_override: { :ATTACK => 2, :SPECIAL_ATTACK => 2 } },
+		:AUTOTOMIZE  => { additional_stats: { :SPEED => 1 } },  # +3 Speed total
+		:SHIFTGEAR   => { stats_override: { :SPEED => 3, :ATTACK => 2 } },
+		:RECYCLE     => { random_stat_boost: true, message: "Recycle raised a random stat!" },
+		:CORROSIVEGAS => { additional_effect: :lower_all_stats },
+	},
 	:damageMods => {
 		1.5 => [:STEAMROLLER, :SMOG, :BEATUP, :PAYDAY, :FIRSTIMPRESSION, :TECHNOBLAST],
 	},
@@ -3073,6 +3383,85 @@ FIELDEFFECTS = {
 			:ATTACK => 1,
 			:ACCURACY => 1,
 		},
+	},
+},
+:PSYCHIC => {
+	:name => "Psychic Terrain",
+	:fieldMessage => ["The field became mysterious!"],
+	:graphic => ["PsychicTerrain"],
+	:secretPower => "PSYCHIC",
+	:naturePower => :PSYCHIC,
+	:mimicry => :PSYCHIC,
+	:abilityActivate => {
+		:ANTICIPATION => {}, :FOREWARN => {}, :PUREPOWER => {}, :ZENMODE => {}, :TELEPATHY => {},
+	},
+	:moveStatStageMods => {
+		:NASTYPLOT => { stats_override: { :SPECIAL_ATTACK => 4 } },
+		:CALMMIND => { stats_override: { :SPECIAL_ATTACK => 2, :SPECIAL_DEFENSE => 2 } },
+		:COSMICPOWER => { stats_override: { :DEFENSE => 2, :SPECIAL_DEFENSE => 2 } },
+		:MEDITATE => { additional_stats: { :SPECIAL_ATTACK => 2 } },
+		:KINESIS => { additional_stats: { :ATTACK => -2, :SPECIAL_ATTACK => -2 } },
+		:TELEKINESIS => { additional_stats: { :DEFENSE => -2, :SPECIAL_DEFENSE => -2 } },
+	},
+	:damageMods => { 1.5 => [:MYSTICALFIRE, :MAGICALLEAF, :AURASPHERE, :HEX, :MOONBLAST, :MINDBLOWN, :FOCUSBLAST, :SECRETPOWER, :HIDDENPOWER] },
+	:accuracyMods => { 90 => [:HYPNOSIS] },
+	:typeBoosts => { 1.5 => [:PSYCHIC] },
+	:typeCondition => { :PSYCHIC => "!attacker.isAirborne?" },
+	:statusMods => [:GRAVITY, :TRICKROOM, :MAGICROOM, :WONDERROOM],
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => 0,
+		:duration => 0,
+		:message => "{1} became confused!",
+		:animation => nil,
+		:stats => { :SPECIAL_ATTACK => 1, :SPECIAL_DEFENSE => 1 },
+	},
+},
+:BEWITCHED => {
+	:name => "Bewitched Woods",
+	:fieldMessage => ["Everlasting glow and glamour!"],
+	:graphic => ["BewitchedWoods"],
+	:secretPower => "DAZZLINGGLEAM",
+	:naturePower => :DAZZLINGGLEAM,
+	:mimicry => :FAIRY,
+	:abilityActivate => {
+		:EFFECTSPORE => {}, :NATURALCURE => {}, :FLOWERVEIL => {},
+		:FLOWERGIFT => {}, :PASTELVEIL => {},
+	},
+	:damageMods => {
+		1.5 => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALLEAF],
+		1.4 => [:ICEBEAM, :HYPERBEAM, :SIGNALBEAM, :AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :PSYBEAM, :FLASHCANNON, :MIRRORBEAM],
+		1.2 => [:DARKPULSE, :NIGHTDAZE, :MOONBLAST],
+	},
+	:accuracyMods => { 85 => [:POISONPOWDER, :SLEEPPOWDER, :GRASSWHISTLE, :STUNSPORE] },
+	:typeBoosts => { 1.5 => [:FAIRY, :GRASS], 1.3 => [:DARK] },
+	:fieldChange => { :FOREST => [:PURIFY] },
+	:statusMods => [:MOONLIGHT, :FORESTSCURSE, :STRENGTHSAP],
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => :Ingrain,
+		:duration => true,
+		:message => "{1} planted its roots!",
+		:animation => :INGRAIN,
+		:stats => { :SPECIAL_DEFENSE => 1 },
+	},
+},
+:MURKWATERSURFACE => {
+	:name => "Murkwater Surface",
+	:fieldMessage => ["The water is polluted!"],
+	:graphic => ["MurkwaterSurface"],
+	:secretPower => "SLUDGEWAVE",
+	:naturePower => :SLUDGEWAVE,
+	:mimicry => :POISON,
+	:damageMods => { 1.5 => [:SLUDGEWAVE, :GUNKSHOT, :POISONJAB] },
+	:typeBoosts => { 1.5 => [:POISON], 1.2 => [:WATER] },
+	:fieldChange => { :WATERSURFACE => [:PURIFY] },
+	:statusMods => [:TOXIC],
+	:seed => {
+		:seedtype => :ELEMENTALSEED,
+		:effect => 0, :duration => 0,
+		:message => "{1} was poisoned!",
+		:stats => { :SPECIAL_DEFENSE => 1 },
 	},
 },
 :ENCHANTEDFOREST => {
