@@ -194,6 +194,14 @@ class FieldTextParser
           end
         end
         
+        # Parse High Striker moves (Big Top Arena)
+        if data[:highStrikerMoves]
+          @high_striker_moves = data[:highStrikerMoves]
+          if $DEBUG
+            Console.echo_li("[PARSER] Loaded highStrikerMoves for #{@name}: #{@high_striker_moves.inspect}")
+          end
+        end
+        
         # Parse ability activation
         if data[:abilityActivate]
           # Accepts either an array [:BLAZE, :FLAREBOOST] or a hash with config

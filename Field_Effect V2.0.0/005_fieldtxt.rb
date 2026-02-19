@@ -671,24 +671,32 @@ FIELDEFFECTS = {
 	],
 	:graphic => ["Poison"],
 	:secretPower => "ACID",
-	:naturePower => :ACIDSPRAY,
+	:naturePower => :ACID,
 	:mimicry => :POISON,
-	# Abilities (section 34 - very brief)
+	# Abilities (section 34)
 	:abilityActivate => {
 		:POISONHEAL => {},
 		:TOXICBOOST => {},
 		:MERCILESS  => {},
-		:CORROSION  => {},
+		:CORROSION  => { damage_boost: 1.5 },
+		:GRASSPELT  => { eor_damage: true },
+	},
+	# Move stat mods
+	:moveStatStageMods => {
+		:ACIDARMOR => { stats_override: { :DEFENSE => 3 } },
+		:FLORALHEAL => { additional_effect: :poison_target },
 	},
 	:damageMods => {
 		1.5 => [:SMACKDOWN, :MUDSLAP, :MUDSHOT, :MUDBOMB, :MUDDYWATER, :WHIRLPOOL, :THOUSANDARROWS, :APPLEACID],
 		2.0 => [:ACID, :ACIDSPRAY, :GRASSKNOT, :SNAPTRAP],
+		0 => [:TOXICSPIKES],  # Can't be absorbed
 	},
 	:accuracyMods => {
 		100 => [:POISONPOWDER, :SLEEPPOWDER, :STUNSPORE, :TOXIC],
 	},
 	:moveMessages => {
 		"The corrosion strengthened the attack!" => [:SMACKDOWN, :MUDSLAP, :MUDSHOT, :MUDBOMB, :MUDDYWATER, :WHIRLPOOL, :THOUSANDARROWS, :APPLEACID, :ACID, :ACIDSPRAY, :GRASSKNOT, :SNAPTRAP],
+		"The toxic field absorbed the spikes!" => [:TOXICSPIKES],
 	},
 	:typeMods => {
 		:POISON => [:SMACKDOWN, :MUDSLAP, :MUDSHOT, :MUDDYWATER, :WHIRLPOOL, :MUDBOMB, :THOUSANDARROWS, :APPLEACID],
@@ -709,13 +717,13 @@ FIELDEFFECTS = {
 	:changeMessage => {
 		 "The polluted field was purified!" => [:SEEDFLARE, :PURIFY],
 	},
-	:statusMods => [:ACIDARMOR, :POISONPOWDER, :SLEEPPOWDER, :STUNSPORE, :TOXIC, :VENOMDRENCH],
+	:statusMods => [:ACIDARMOR, :POISONPOWDER, :SLEEPPOWDER, :STUNSPORE, :TOXIC, :VENOMDRENCH, :VENOSHOCK, :BARBBARRAGE, :FLORALHEAL, :INGRAIN],
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :TELLURICSEED,
-		:effect => :Protect,
-		:duration => :BanefulBunker,
-		:message => "The Telluric Seed shielded {1} against damage!",
+		:effect => :BanefulBunker,
+		:duration => 1,
+		:message => "{1} protected itself with Baneful Bunker!",
 		:animation => :BANEFULBUNKER,
 		:stats => {
 		},
@@ -728,7 +736,7 @@ FIELDEFFECTS = {
 	],
 	:graphic => ["CorrosiveMist"],
 	:secretPower => "ACIDSPRAY",
-	:naturePower => :VENOSHOCK,
+	:naturePower => :ACIDSPRAY,
 	:mimicry => :POISON,
 	# Abilities (section 33)
 	:abilityActivate => {
@@ -737,25 +745,30 @@ FIELDEFFECTS = {
 		:MERCILESS     => {},
 		:WATERCOMPACTION => {},
 		:CORROSION     => {},
+		:DRYSKIN       => {},  # Special handling
 	},
 	# Move stat mods
 	:moveStatStageMods => {
 		:ACIDARMOR => { stats_override: { :DEFENSE => 2 } },
 		:SMOKESCREEN => { stages: 2 },
+		:FLORALHEAL => { additional_effect: :poison_target },
+		:LIFEDEW => { additional_effect: :poison_targets },
 	},
 	:damageMods => {
-		1.5 => [:BUBBLEBEAM, :ACIDSPRAY, :BUBBLE, :SMOG, :CLEARSMOG, :SPARKLINGARIA],
+		1.5 => [:BUBBLEBEAM, :ACIDSPRAY, :BUBBLE, :SMOG, :CLEARSMOG, :SPARKLINGARIA, :APPLEACID, :OCEANICOPERETTA],
 	},
 	:accuracyMods => {
 		100 => [:TOXIC],
 	},
 	:moveMessages => {
-		"The poison strengthened the attack!" => [:BUBBLEBEAM, :ACIDSPRAY, :BUBBLE, :SMOG, :CLEARSMOG, :SPARKLINGARIA, :APPLEACID],
+		"The poison strengthened the attack!" => [:BUBBLEBEAM, :ACIDSPRAY, :BUBBLE, :SMOG, :CLEARSMOG, :SPARKLINGARIA, :APPLEACID, :OCEANICOPERETTA],
 	},
 	:typeMods => {
 		:POISON => [:BUBBLE, :BUBBLEBEAM, :ENERGYBALL, :SPARKLINGARIA, :APPLEACID],
 	},
-	:typeAddOns => {},
+	:typeAddOns => {
+		:POISON => [:FLYING],  # Special Flying moves
+	},
 	:moveEffects => {},
 	:typeBoosts => {
 		1.5 => [:FIRE],
@@ -763,7 +776,9 @@ FIELDEFFECTS = {
 	:typeMessages => {
 		"The toxic mist caught flame!" => [:FIRE],
 	},
-	:typeCondition => {},
+	:typeCondition => {
+		:FLYING => "!self.physicalMove?",  # Special Flying only
+	},
 	:typeEffects => {},
 	:changeCondition => {},
 	:fieldChange => {
@@ -777,16 +792,16 @@ FIELDEFFECTS = {
 		 "The polluted mist was purified!" => [:SEEDFLARE],
 		 "The toxic mist collected on the ground!" => [:GRAVITY],
 	},
-	:statusMods => [:ACIDARMOR, :SMOKESCREEN, :VENOMDRENCH, :TOXIC],
+	:statusMods => [:ACIDARMOR, :SMOKESCREEN, :VENOMDRENCH, :VENOSHOCK, :BARBBARRAGE, :TOXIC, :FLORALHEAL, :LIFEDEW, :AQUARING],
 	:changeEffects => {
 		"@battle.mistExplosion" => [:HEATWAVE, :ERUPTION, :SEARINGSHOT, :FLAMEBURST, :LAVAPLUME, :FIREPLEDGE, :MINDBLOWN, :INCINERATE, :INFERNOOVERDRIVE, :SELFDESTRUCT, :EXPLOSION],
 	},
 	:seed => {
 		:seedtype => :ELEMENTALSEED,
-		:effect => 0,
-		:duration => 0,
+		:effect => :BadlyPoison,
+		:duration => 1,
 		:message => "{1} was badly poisoned!",
-		:animation => nil,
+		:animation => :TOXIC,
 		:stats => {
 			:ATTACK => 1,
 			:SPECIAL_ATTACK => 1,
@@ -962,7 +977,17 @@ FIELDEFFECTS = {
 	:secretPower => "ROCKTHROW",
 	:naturePower => :ROCKSMASH,
 	:mimicry => :ROCK,
-	:abilityActivate => { :ROCKHEAD => {}, :STURDY => {}, :STEADFAST => {} },
+	# Abilities (Section 38)
+	:abilityActivate => { 
+		:ROCKHEAD => { no_miss_recoil: true }, 
+		:STURDY => { no_flinch_damage: true }, 
+		:STEADFAST => { no_flinch_damage: true },
+		:GORILLATACTICS => { double_miss_recoil: true },
+	},
+	# Ability mods
+	:abilityMods => {
+		:LONGREACH => { accuracy: 0.9 },  # Accuracy drops
+	},
 	:moveStatStageMods => { :ROCKPOLISH => { stats_override: { :SPEED => 4 } } },
 	:damageMods => {
 		1.5 => [:ROCKCLIMB, :STRENGTH, :MAGNITUDE, :EARTHQUAKE, :BULLDOZE, :ACCELEROCK],
@@ -974,7 +999,7 @@ FIELDEFFECTS = {
 		"SMASH'D!" => [:ROCKSMASH],
 	},
 	:typeMods => {
-		:ROCK => [:ROCKCLIMB, :EARTHQUAKE, :MAGNITUDE, :STRENGTH, :BULLDOZE],
+		:ROCK => [:ROCKCLIMB, :EARTHQUAKE, :MAGNITUDE, :STRENGTH, :BULLDOZE, :ACCELEROCK],
 	},
 	:typeAddOns => {},
 	:moveEffects => {},
@@ -994,10 +1019,10 @@ FIELDEFFECTS = {
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :TELLURICSEED,
-		:effect => 0,
-		:duration => 0,
+		:effect => :Endure,  # Takes Stealth Rock damage
+		:duration => 1,
 		:message => "{1} was hurt by Stealth Rocks!",
-		:animation => nil,
+		:animation => :STEALTHROCK,
 		:stats => {
 			:DEFENSE => 1,
 			:SPECIAL_DEFENSE => 1,
@@ -1468,6 +1493,7 @@ FIELDEFFECTS = {
 	:moveStatStageMods => {
 		:TAKEHEART => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "The water cleansed {1} and boosted Sp. Atk!" },
 		:SPLASH => { target_effect: :lower_accuracy, message: "{1} splashed water in the opponent's face!" },
+		:WAVECRASH => { recoil_reduction: 0.25 },  # Reduce recoil to 25%
 	},
 	# No charging moves
 	:noCharging => [:DIVE],
@@ -1907,26 +1933,40 @@ FIELDEFFECTS = {
 },
 :MURKWATERSURFACE => {
 	:name => "Murkwater Surface",
-	:fieldMessage => [
-		"The water is tainted..."
-	],
+	:fieldMessage => ["The water is tainted..."],
 	:graphic => ["MurkwaterSurface"],
 	:secretPower => "SLUDGEBOMB",
 	:naturePower => :SLUDGEWAVE,
 	:mimicry => :POISON,
+	# Abilities (Section 39)
+	:abilityActivate => {
+		:POISONHEAL => {},
+		:TOXICBOOST => {},
+		:MERCILESS => {},
+		:SWIFTSWIM => {},
+		:SURGESURFER => {},
+		:WATERCOMPACTION => { eor: true },  # Each turn
+		:SCHOOLING => { always_active: true },
+	},
+	# Move stat mods
+	:moveStatStageMods => {
+		:ACIDARMOR => { stats_override: { :DEFENSE => 3 } },  # Amplified
+		:TARSHOT => { additional_effect: :poison },
+		:LIFEDEW => { additional_effect: :poison },
+	},
 	:damageMods => {
-		1.5 => [:MUDBOMB, :MUDSLAP, :MUDSHOT, :SMACKDOWN, :ACID, :ACIDSPRAY, :BRINE, :THOUSANDWAVES, :APPLEACID],
+		1.5 => [:MUDBOMB, :MUDSLAP, :MUDSHOT, :SMACKDOWN, :ACID, :ACIDSPRAY, :BRINE, :THOUSANDWAVES, :APPLEACID, :MUDBARRAGE],
 		0 => [:SPIKES, :TOXICSPIKES],
 	},
 	:accuracyMods => {},
 	:moveMessages => {
-		"The toxic water strengthened the attack!" => [:MUDBOMB, :MUDSLAP, :MUDSHOT, :SMACKDOWN, :ACID, :ACIDSPRAY, :THOUSANDWAVES, :APPLEACID],
+		"The toxic water strengthened the attack!" => [:MUDBOMB, :MUDSLAP, :MUDSHOT, :SMACKDOWN, :ACID, :ACIDSPRAY, :THOUSANDWAVES, :APPLEACID, :MUDBARRAGE],
 		"Stinging!" => [:BRINE],
 		"...The spikes sank into the water and vanished!" => [:SPIKES, :TOXICSPIKES],
 	},
 	:typeMods => {
-		:POISON => [:MUDBOMB, :MUDSLAP, :MUDSHOT, :SMACKDOWN, :THOUSANDWAVES, :APPLEACID],
-		:WATER => [:SLUDGEWAVE],
+		:POISON => [:MUDBOMB, :MUDSLAP, :MUDSHOT, :SMACKDOWN, :THOUSANDWAVES, :APPLEACID, :MUDBARRAGE],
+		:WATER => [:SLUDGEWAVE, :MUDBOMB, :MUDSLAP, :MUDSHOT, :THOUSANDWAVES, :MUDBARRAGE],
 	},
 	:typeAddOns => {
 		:POISON => [:WATER],
@@ -1957,13 +1997,13 @@ FIELDEFFECTS = {
 		"The attack cleared the waters!" => [:PURIFY],
 		"The toxic water froze over!" => [:BLIZZARD, :GLACIATE, :SUBZEROSLAMMER],
 	},
-	:statusMods => [:ACIDARMOR, :TARSHOT, :VENOMDRENCH],
+	:statusMods => [:ACIDARMOR, :TARSHOT, :VENOMDRENCH, :VENOSHOCK, :BARBBARRAGE, :LIFEDEW],
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :ELEMENTALSEED,
 		:effect => :AquaRing,
 		:duration => true,
-		:message => "{1} surrounded itself with a veil of water!",
+		:message => "{1} surrounded itself with a veil of water! {1} was poisoned!",
 		:animation => :AQUARING,
 		:stats => {
 			:SPEED => 1,
@@ -2800,17 +2840,30 @@ FIELDEFFECTS = {
 	:secretPower => "SHADOWCLAW",
 	:naturePower => :PHANTOMFORCE,
 	:mimicry => :GHOST,
-	# Abilities activated/modified on Haunted Field
+	# Abilities activated/modified on Haunted Field (Section 25)
 	:abilityActivate => {
-		:PERISHBODY  => {},  # Traps on contact (hardcoded section 25)
-		:CURSEDBODY  => {},  # Always activates on fainting (hardcoded section 25)
-		:WANDERINGSPIRIT => {},  # Speed loss per turn (hardcoded section 25)
-		:SHADOWTAG   => {},  # Frisks on entry (hardcoded section 25)
-		:RATTLED     => {},  # Speed boost on entry (hardcoded section 25)
+		:PERISHBODY  => { traps_opponent: true },
+		:CURSEDBODY  => { always_activates_faint: true },
+		:WANDERINGSPIRIT => { speed_loss_eor: true },
+		:SHADOWTAG   => { frisks_on_entry: true },
+		:RATTLED     => { speed_boost_entry: true },
+		:POWERSPOT   => {},
+	},
+	# Ability mods
+	:abilityMods => {
+		:POWERSPOT => { multiplier: 1.5 },
 	},
 	# Move stat stage modifiers
 	:moveStatStageMods => {
 		:SCARYFACE => { stages: 4, message: "The haunted atmosphere made it terrifying! {1}'s Speed harshly fell!" },
+		:BITTERMALICE => { additional_stats: { :SPECIAL_ATTACK => -1 } },
+		:OMINOUSWIND => { stat_boost_chance: 20 },  # 20% to boost all stats
+		:MAGICPOWDER => { status_effect: :sleep },
+		:LICK => { paralyze_chance: 100 },
+		:NIGHTSHADE => { damage_multiplier: 1.5 },
+		:CURSE => { ghost_hp_cost: 0.25 },  # 25% HP for Ghost-types
+		:SPITE => { pp_reduction: 4 },  # -4 PP total (base -2, +2 more)
+		:DESTINYBOND => { never_fails: true },
 	},
 	# No charging moves (Phantom Force, Shadow Force become 1-turn)
 	:noCharging => [:PHANTOMFORCE, :SHADOWFORCE],
@@ -2835,7 +2888,11 @@ FIELDEFFECTS = {
 	},
 	:typeAddOns => {
 	},
-	:moveEffects => {},
+	:moveEffects => {
+		"target_both_opponents" => [:MEANLOOK, :FIRESPIN],
+		"fire_spin_damage_boost" => [:FIRESPIN],  # 1/6 instead of 1/8
+		"spirit_break_se_ghost" => [:SPIRITBREAK],
+	},
 	:typeBoosts => {
 		1.5 => [:GHOST],
 	},
@@ -2856,14 +2913,14 @@ FIELDEFFECTS = {
 		 "The evil spirits have been exorcised!" => [:JUDGEMENT, :ORIGINPULSE, :PURIFY, :SACREDFIRE],
 		 "The evil spirits have been forced back!" => [:FLASH, :DAZZLINGGLEAM],
 	},
-	:statusMods => [:NIGHTMARE, :SPITE, :CURSE, :DESTINYBOND, :MEANLOOK, :SCARYFACE, :MAGICPOWDER, :HYPNOSIS, :WILLOWISP],
+	:statusMods => [:NIGHTMARE, :SPITE, :CURSE, :DESTINYBOND, :MEANLOOK, :SCARYFACE, :MAGICPOWDER, :HYPNOSIS, :WILLOWISP, :INFERNALPARADE, :OMINOUSWIND, :BITTERMALICE, :LICK, :NIGHTSHADE],
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :MAGICALSEED,
-		:effect => :nil,
-		:duration => nil,
-		:message => "",
-		:animation => nil,
+		:effect => :Burn,
+		:duration => 1,
+		:message => "{1} was burned!",
+		:animation => :WILLOWISP,
 		:stats => {
 			:SPECIAL_DEFENSE => 1,
 			:DEFENSE => 1,
@@ -2882,9 +2939,15 @@ FIELDEFFECTS = {
 	# Abilities (section 32)
 	:abilityActivate => {
 		:POISONHEAL  => {},
-		:POISONTOUCH => {},
-		:POISONPOINT => {},
-		:CORROSION   => {},
+		:POISONTOUCH => { doubled_rate: true },
+		:POISONPOINT => { doubled_rate: true },
+		:CORROSION   => { damage_boost: 1.5 },
+		:TOXICBOOST  => { doubled_boost: true },  # 100% instead of 50%
+		:GRASSPELT   => { eor_damage: true },
+		:LEAFGUARD   => { eor_damage: true },
+		:FLOWERVEIL  => { eor_damage: true },
+		:DRYSKIN     => {},  # Special handling in hardcode
+		:LIQUIDOOZE  => { doubled_damage: true },
 	},
 	# Move modifications
 	:moveStatStageMods => {
@@ -2900,7 +2963,7 @@ FIELDEFFECTS = {
 		"The move absorbed the filth!" => [:SEEDFLARE],
 	},
 	:typeMods => {
-		:POISON => [:ROCKSLIDE, :SMACKDOWN, :STONEEDGE, :ROCKTOMB, :DIAMONDSTORM],
+		:POISON => [:ROCKSLIDE, :SMACKDOWN, :STONEEDGE, :ROCKTOMB, :DIAMONDSTORM, :APPLEACID],
 		:ROCK => [:SLUDGEWAVE, :GUNKSHOT],
 	},
 	:typeAddOns => {
@@ -2931,16 +2994,16 @@ FIELDEFFECTS = {
 	:changeMessage => {
 		 "The cave was purified!" => [:SOLARBEAM, :SOLARBLADE, :PURIFY, :SEEDFLARE],
 	},
-	:statusMods => [:NIGHTMARE, :SPITE, :CURSE, :DESTINYBOND, :MEANLOOK, :SCARYFACE, :MAGICPOWDER, :HYPNOSIS, :WILLOWISP],
+	:statusMods => [:NIGHTMARE, :SPITE, :CURSE, :DESTINYBOND, :MEANLOOK, :SCARYFACE, :MAGICPOWDER, :HYPNOSIS, :WILLOWISP, :INGRAIN, :STEALTHROCK],
 	:changeEffects => {
 		"@battle.mistExplosion" => [:HEATWAVE, :ERUPTION, :LAVAPLUME, :BLASTBURN, :INFERNOOVERDRIVE],
 	},
 	:seed => {
 		:seedtype => :SYNTHETICSEED,
-		:effect => nil,
-		:duration => nil,
-		:message => "",
-		:animation => nil,
+		:effect => :BadlyPoison,
+		:duration => 1,
+		:message => "{1} was badly poisoned!",
+		:animation => :TOXIC,
 		:stats => {
 			:DEFENSE => 2,
 		},
@@ -3392,8 +3455,33 @@ FIELDEFFECTS = {
 	:secretPower => "PSYCHIC",
 	:naturePower => :PSYCHIC,
 	:mimicry => :PSYCHIC,
+	# Ability form changes
+	:abilityFormChanges => {
+		:ZENMODE => {
+			:ZENMODE => { form: 1, show_ability: true, message: "{1} entered Zen Mode!" }
+		}
+	},
+	# Abilities (Section 37)
 	:abilityActivate => {
 		:ANTICIPATION => {}, :FOREWARN => {}, :PUREPOWER => {}, :ZENMODE => {}, :TELEPATHY => {},
+		:POWERSPOT => {}, :MAGICIAN => { status_accuracy: 50 },  # Status moves 50% accuracy
+	},
+	# Ability stat boosts on switch-in
+	:abilityStatBoosts => {
+		:ANTICIPATION => {
+			stat: :SPECIAL_ATTACK,
+			stages: 1,
+			message: "{1}'s Anticipation boosted its Sp. Atk!"
+		},
+		:FOREWARN => {
+			stat: :SPECIAL_ATTACK,
+			stages: 1,
+			message: "{1}'s Forewarn boosted its Sp. Atk!"
+		},
+	},
+	# Ability mods
+	:abilityMods => {
+		:POWERSPOT => { multiplier: 1.5 },  # Increased from 1.3x
 	},
 	:moveStatStageMods => {
 		:NASTYPLOT => { stats_override: { :SPECIAL_ATTACK => 4 } },
@@ -3402,18 +3490,24 @@ FIELDEFFECTS = {
 		:MEDITATE => { additional_stats: { :SPECIAL_ATTACK => 2 } },
 		:KINESIS => { additional_stats: { :ATTACK => -2, :SPECIAL_ATTACK => -2 } },
 		:TELEKINESIS => { additional_stats: { :DEFENSE => -2, :SPECIAL_DEFENSE => -2 } },
+		:PSYCHUP => { additional_stats: { :SPECIAL_ATTACK => 2 } },
+		:MINDREADER => { additional_stats: { :SPECIAL_ATTACK => 2 } },
+		:MIRACLEEYE => { additional_stats: { :SPECIAL_ATTACK => 2 } },
+		:PSYCHIELDBASH => { additional_stats: { :SPECIAL_DEFENSE => 1 } },
+		:ESPERWING => { speed_double: true },  # Speed boost doubled
+		:MYSTICALPOWER => { spatk_double: true },  # SpAtk boost doubled
 	},
 	:damageMods => { 1.5 => [:MYSTICALFIRE, :MAGICALLEAF, :AURASPHERE, :HEX, :MOONBLAST, :MINDBLOWN, :FOCUSBLAST, :SECRETPOWER, :HIDDENPOWER] },
 	:accuracyMods => { 90 => [:HYPNOSIS] },
 	:typeBoosts => { 1.5 => [:PSYCHIC] },
 	:typeCondition => { :PSYCHIC => "!attacker.isAirborne?" },
-	:statusMods => [:GRAVITY, :TRICKROOM, :MAGICROOM, :WONDERROOM],
+	:statusMods => [:GRAVITY, :TRICKROOM, :MAGICROOM, :WONDERROOM, :PSYCHUP, :MINDREADER, :MIRACLEEYE],
 	:seed => {
 		:seedtype => :MAGICALSEED,
-		:effect => 0,
-		:duration => 0,
+		:effect => :Confusion,
+		:duration => 3,
 		:message => "{1} became confused!",
-		:animation => nil,
+		:animation => :CONFUSION,
 		:stats => { :SPECIAL_ATTACK => 1, :SPECIAL_DEFENSE => 1 },
 	},
 },
@@ -3424,9 +3518,26 @@ FIELDEFFECTS = {
 	:secretPower => "DAZZLINGGLEAM",
 	:naturePower => :DAZZLINGGLEAM,
 	:mimicry => :FAIRY,
+	# Abilities (Section 36)
 	:abilityActivate => {
-		:EFFECTSPORE => {}, :NATURALCURE => {}, :FLOWERVEIL => {},
-		:FLOWERGIFT => {}, :PASTELVEIL => {},
+		:EFFECTSPORE => { doubled_rate: true },
+		:NATURALCURE => { eor_healing: true },
+		:FLOWERVEIL => { affects_all: true },
+		:FLOWERGIFT => { always_active: true },
+		:PASTELVEIL => { remove_fairy_weakness: true },
+		:COTTONDOWN => { doubled_effect: true },
+		:POWERSPOT => {},
+	},
+	# Ability mods
+	:abilityMods => {
+		:POWERSPOT => { multiplier: 1.5 },
+	},
+	# Move stat mods
+	:moveStatStageMods => {
+		:STRENGTHSAP => { additional_stats: { :SPECIAL_ATTACK => -1 } },
+		:FORESTSCURSE => { additional_effect: :curse },
+		:MAGICPOWDER => { status_effect: :sleep },
+		:MOONLIGHT => { healing_amount: 0.75 },
 	},
 	:damageMods => {
 		1.5 => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALLEAF],
@@ -3436,7 +3547,7 @@ FIELDEFFECTS = {
 	:accuracyMods => { 85 => [:POISONPOWDER, :SLEEPPOWDER, :GRASSWHISTLE, :STUNSPORE] },
 	:typeBoosts => { 1.5 => [:FAIRY, :GRASS], 1.3 => [:DARK] },
 	:fieldChange => { :FOREST => [:PURIFY] },
-	:statusMods => [:MOONLIGHT, :FORESTSCURSE, :STRENGTHSAP],
+	:statusMods => [:MOONLIGHT, :FORESTSCURSE, :STRENGTHSAP, :MAGICPOWDER],
 	:seed => {
 		:seedtype => :MAGICALSEED,
 		:effect => :Ingrain,
@@ -3446,22 +3557,225 @@ FIELDEFFECTS = {
 		:stats => { :SPECIAL_DEFENSE => 1 },
 	},
 },
-:MURKWATERSURFACE => {
-	:name => "Murkwater Surface",
-	:fieldMessage => ["The water is polluted!"],
-	:graphic => ["MurkwaterSurface"],
-	:secretPower => "SLUDGEWAVE",
-	:naturePower => :SLUDGEWAVE,
-	:mimicry => :POISON,
-	:damageMods => { 1.5 => [:SLUDGEWAVE, :GUNKSHOT, :POISONJAB] },
-	:typeBoosts => { 1.5 => [:POISON], 1.2 => [:WATER] },
-	:fieldChange => { :WATERSURFACE => [:PURIFY] },
-	:statusMods => [:TOXIC],
+:BIGTOP => {
+	:name => "Big Top Arena",
+	:fieldMessage => ["Now presenting...!"],
+	:graphic => ["BigTop"],
+	:secretPower => "POWERUPPUNCH",
+	:naturePower => :ACROBATICS,
+	:mimicry => :NORMAL,
+	# High Striker moves - physical Fighting + specific moves
+	:highStrikerMoves => [
+		# All physical Fighting-type moves (handled in hardcode section 40)
+		:STRENGTH, :WOODHAMMER, :DUALCHOP, :HEATCRASH, :SKYDROP,
+		:BULLDOZE, :ICICLECRASH, :BODYSLAM, :STOMP, :GIGAIMPACT,
+		:POUND, :SMACKDOWN, :IRONTAIL, :METEORMASH, :CRABHAMMER,
+		:DRAGONRUSH, :BOUNCE, :SLAM, :HEAVYSLAM, :HIGHHORSEPOWER,
+		:EARTHQUAKE, :ICEHAMMER, :DRAGONHAMMER, :CONTINENTALCRUSH, :STOMPINGTANTRUM,
+		:GRAVAPPLE, :BRUTALSWING, :MAGNITUDE, :BLAZEKICK, :DOUBLEIRONBASH,
+		:HEADLONGRUSH
+	],
+	# High Striker guarantee abilities
+	:abilityActivate => {
+		:GUTS => { high_striker_guarantee: true },
+		:HUGEPOWER => { high_striker_guarantee: true },
+		:PUREPOWER => { high_striker_guarantee: true },
+		:SHEERFORCE => { high_striker_guarantee: true },
+		:DANCER => {},  # Speed/SpAtk boost on dance moves (needs hardcode)
+		:PUNKROCK => {},  # 1.5x sound boost (already in abilityMods)
+	},
+	# Ability mods
+	:abilityMods => {
+		:PUNKROCK => { multiplier: 1.5 },  # Sound moves boosted
+	},
+	:moveStatStageMods => {
+		:DRAGONDANCE => { stats_override: { :ATTACK => 2, :SPEED => 2 } },
+		:QUIVERDANCE => { stats_override: { :SPECIAL_ATTACK => 2, :SPECIAL_DEFENSE => 2, :SPEED => 2 } },
+		:SWORDSDANCE => { stats_override: { :ATTACK => 4 } },
+		:FEATHERDANCE => { stages: 4 },
+		:BELLYDRUM => { additional_stats: { :DEFENSE => 1, :SPECIAL_DEFENSE => 1 } },
+		:CLANGOROUSSOUL => { stats_override: { :ATTACK => 2, :DEFENSE => 2, :SPECIAL_ATTACK => 2, :SPECIAL_DEFENSE => 2, :SPEED => 2 }, hp_cost: 0.5 },
+		:SPOTLIGHT => { additional_stats: { :ATTACK => 1, :SPECIAL_ATTACK => 1 } },  # For user AND target
+	},
+	:damageMods => {
+		2.0 => [:PAYDAY],
+		1.5 => [:VINEWHIP, :POWERWHIP, :FIERYDANCE, :PETALDANCE, :FLY, :ACROBATICS, :FIRELASH, :REVELATIONDANCE, :FIRSTIMPRESSION, :DRUMBEATING,
+		        # Sound-based moves (needs comprehensive list or soundMove? check)
+		        :BOOMBURST, :BUGBUZZ, :CHATTER, :CLANGINGSCALES, :CONFIDE, :DISARMINGVOICE, :ECHOEDVOICE,
+		        :GRASSWHISTLE, :GROWL, :HEALBELL, :HYPERVOICE, :METALSOUND, :NOBLEROAR, :OVERDRIVE,
+		        :PERISHSONG, :RELICSONG, :ROAR, :ROUND, :SCREECH, :SING, :SNARL, :SNORE, :SPARKLINGARIA,
+		        :SUPERSONIC, :UPROAR],
+	},
+	:accuracyMods => { 100 => [:SING] },
+	:weatherDuration => { :Rain => 8 },
+	:statusMods => [:ENCORE, :RAINDANCE, :PAYDAY, :SPOTLIGHT, :DRAGONDANCE, :QUIVERDANCE, :SWORDSDANCE, :FEATHERDANCE, :BELLYDRUM, :CLANGOROUSSOUL],
 	:seed => {
-		:seedtype => :ELEMENTALSEED,
-		:effect => 0, :duration => 0,
-		:message => "{1} was poisoned!",
-		:stats => { :SPECIAL_DEFENSE => 1 },
+		:seedtype => :SYNTHETICSEED,
+		:effect => :HelpingHand,
+		:duration => 1,
+		:message => "{1} is ready to help!",
+		:stats => { :ATTACK => 1 },
 	},
 },
+:ENCHANTEDFOREST => {
+	:name => "Enchanted Forest",
+	:fieldMessage => [
+		"Once upon a time!"
+	],
+	:graphic => ["EnchantedForest"],
+	:secretPower => "DAZZLINGGLEAM",
+	:naturePower => :DAZZLINGGLEAM,
+	:mimicry => :FAIRY,
+	:damageMods => {
+		1.5 => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALTORQUE, :FLEURCANNON, :RELICSONG,
+		        :AIRSLASH, :AQUACUTTER, :BEHEMOTHBLADE, :CEASELESSEDGE, :LEAFBLADE, :NIGHTSLASH, 
+		        :PSYCHOCUT, :RAZORSHELL, :SMARTSTRIKE, :SOLARBLADE, :STONEAXE, :TACHYONCUTTER, 
+		        :BITTERBLADE, :PSYBLADE],
+		1.4 => [:AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :HYPERBEAM, :ICEBEAM, 
+		        :PSYBEAM, :SIGNALBEAM, :TWINBEAM],
+		1.2 => [:DARKPULSE, :MOONBLAST, :NIGHTDAZE, :BLOODMOON],
+	},
+	:accuracyMods => {
+		85 => [:GRASSWHISTLE, :POISONPOWDER, :SLEEPPOWDER, :STUNSPORE],
+	},
+	:moveMessages => {
+		"Magic aura amplified the attack!" => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALTORQUE, :FLEURCANNON, :RELICSONG],
+		"The Knight is Justified!" => [:AIRSLASH, :AQUACUTTER, :BEHEMOTHBLADE, :CEASELESSEDGE, :LEAFBLADE, :NIGHTSLASH, 
+		                                :PSYCHOCUT, :RAZORSHELL, :SMARTSTRIKE, :SOLARBLADE, :STONEAXE, :TACHYONCUTTER, 
+		                                :BITTERBLADE, :PSYBLADE],
+		"Magic aura amplified the beams!" => [:AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :HYPERBEAM, :ICEBEAM, 
+		                                      :PSYBEAM, :SIGNALBEAM, :TWINBEAM],
+		"It was a curse!" => [:DARKPULSE, :MOONBLAST, :NIGHTDAZE, :BLOODMOON],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.5 => [:FAIRY, :GRASS, :POISON],
+		1.3 => [:DARK],
+		1.2 => [:STEEL],
+	},
+	:typeMessages => {
+		"The enchanted aura boosted the attack!" => [:FAIRY, :STEEL],
+		"Flourish!" => [:GRASS],
+		"Poison seeps from the darkness!" => [:POISON],
+		"Not all fairy tales..." => [:DARK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:FORESTSCURSE, :MAGICPOWDER, :MOONLIGHT, :STRENGTHSAP],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:SPECIAL_DEFENSE => 1,
+		},
+	},
+	},
+:SAHARA => {
+	:name => "Sahara",
+	:fieldMessage => [
+		"The air is dry and humid."
+	],
+	:graphic => ["Sahara"],
+	:secretPower => "NEEDLEARM",
+	:naturePower => :NEEDLEARM,
+	:mimicry => :GROUND,
+	:damageMods => {
+		1.5 => [:NEEDLEARM, :OVERHEAT, :PINMISSILE, :ROCKWRECKER, :SANDTOMB, :SCORCHINGSANDS, :ATTACKORDER, :BUGBUZZ],
+		0.8 => [:WATER],
+	},
+	:accuracyMods => {},
+	:moveMessages => {
+		"The dry earth boosted the attack!" => [:NEEDLEARM, :OVERHEAT, :PINMISSILE, :ROCKWRECKER, :SANDTOMB, :SCORCHINGSANDS],
+		"They're coming out of the woodwork!" => [:ATTACKORDER, :BUGBUZZ],
+		"The water evaporated!" => [:WATER],
+	},
+	:typeMods => {
+		:WATER => [:ICE],
+	},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.3 => [:BUG, :FIRE, :GROUND, :ROCK],
+	},
+	:typeMessages => {
+		"The humid air boosted the attack!" => [:BUG, :FIRE, :GROUND, :ROCK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:SANDATTACK, :DEFENDORDER, :SILVERWIND],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :TELLURICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:DEFENSE => 1,
+		},
+	},
+	},
+:POISONLIBRARY => {
+	:name => "Poison Library",
+	:fieldMessage => [
+		"The library is seeping knowledge."
+	],
+	:graphic => ["PoisonLibrary"],
+	:secretPower => "ACID",
+	:naturePower => :ACID,
+	:mimicry => :POISON,
+	:damageMods => {},
+	:accuracyMods => {},
+	:moveMessages => {},
+	:typeMods => {},
+	:typeAddOns => {
+		:POISON => [:GRASS],
+		:FAIRY => [:PSYCHIC],
+	},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.4 => [:POISON],
+		1.2 => [:GRASS, :FIRE, :FAIRY],
+	},
+	:typeMessages => {
+		"The Poison permeates through the field!" => [:POISON],
+		"The library is overgrown!" => [:GRASS],
+		"Alexandria!" => [:FIRE],
+		"The power of knowledge!" => [:FAIRY],
+	},
+	:typeCondition => {
+		:POISON => "!attacker.isAirborne?",
+	},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :SYNTHETICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:SPECIAL_ATTACK => 1,
+		},
+	},
+}
 }

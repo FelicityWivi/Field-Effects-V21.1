@@ -97,26 +97,34 @@ class Battle::Scene::FightMenu
       # Effectiveness indicator (top-right corner)
       begin
         next unless target
+        next unless move.damagingMove?
+
         eff_x = button.x - self.x + button.src_rect.width - icon_width - padding - left_shift
         eff_y = button.y - self.y + padding
-        
-        # Calculate effectiveness
-        next unless move.damagingMove?
-        target_types = target.pbTypes(true)
-        effectiveness = Effectiveness.calculate(move.type, *target_types)
+
+        # Use pbCalcType to get the actual in-battle type (accounts for abilities/field effects)
+        move_type = move.pbCalcType(@battler)
+        next unless move_type && GameData::Type.exists?(move_type)
+
+        # Strip nil/invalid entries that pbTypes(true) can return (e.g. Forest's Curse edge cases)
+        target_types = target.pbTypes(true).select { |t| t && GameData::Type.exists?(t) }
+        next if target_types.empty?
+
+        # eff = nil MUST be set before calculate so a rescued error can't carry a stale value forward
         eff = nil
+        effectiveness = Effectiveness.calculate(move_type, *target_types)
         eff = :super  if Effectiveness.super_effective?(effectiveness)
         eff = :resist if Effectiveness.not_very_effective?(effectiveness)
         eff = :immune if Effectiveness.ineffective?(effectiveness)
         next if !eff
-        
+
         eff_file = case eff
         when :super  then "Graphics/UI/Battle/type_super"
         when :resist then "Graphics/UI/Battle/type_resist"
         when :immune then "Graphics/UI/Battle/type_immune"
         else nil
         end
-        
+
         imgPos.push([eff_file, eff_x, eff_y]) if eff_file && pbResolveBitmap(eff_file)
       rescue => e
         # Silent fail for effectiveness indicator
