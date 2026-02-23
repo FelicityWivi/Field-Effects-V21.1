@@ -599,7 +599,7 @@ class Battle::Battler
     end
     
     # Call original
-    return field_blocked_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
+    return field_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
   end
 end
 
@@ -2465,6 +2465,8 @@ Battle::AbilityEffects::OnSwitchIn.add(:SCHOOLING_WATERSURFACE,
 
 # Wave Crash - Recoil reduced to 25%
 class Battle::Move::RecoilQuarterOfDamageDealt
+  alias watersurface_pbEffectAfterAllHits pbEffectAfterAllHits if method_defined?(:pbEffectAfterAllHits)
+
   def pbEffectAfterAllHits(user, target)
     if @battle.has_field? && WATER_SURFACE_IDS.include?(@battle.current_field.id)
       if @id == :WAVECRASH
@@ -2476,7 +2478,7 @@ class Battle::Move::RecoilQuarterOfDamageDealt
         return
       end
     end
-    watersurface_pbEffectAfterAllHits(user, target)
+    respond_to?(:watersurface_pbEffectAfterAllHits) ? watersurface_pbEffectAfterAllHits(user, target) : super
   end
 end
 
