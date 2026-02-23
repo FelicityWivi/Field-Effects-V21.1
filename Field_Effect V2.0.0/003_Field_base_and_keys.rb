@@ -51,10 +51,10 @@ end
 # :block_berry
 class Battle::Battler
   alias field_canConsumeBerry? canConsumeBerry?
-  def canConsumeBerry?(item = nil)
+  def canConsumeBerry?
     ret = @battle.apply_field_effect(:block_berry, self)
     return false if ret
-    return field_canConsumeBerry?(item)
+    return field_canConsumeBerry?
   end
 end
 

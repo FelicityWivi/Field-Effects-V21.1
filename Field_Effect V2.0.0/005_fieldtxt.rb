@@ -680,7 +680,7 @@ FIELDEFFECTS = {
 		"The rainbow energized the attack!" => [:NORMAL],
 	},
 	:typeCondition => {
-		:NORMAL => "self.pbIsSpecial?(type)",
+		:NORMAL => "self.specialMove?(type)",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -1143,7 +1143,7 @@ FIELDEFFECTS = {
 		"The forestry strengthened the attack!" => [:GRASS],
 	},
 	:typeCondition => {
-		:BUG => "self.pbIsSpecial?(type)",
+		:BUG => "self.specialMove?(type)",
 	},
 	:typeEffects => {},
 	:changeCondition => {
@@ -1287,7 +1287,7 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:SHORTCIRCUIT => "!(self.move==:ULTRAMEGADEATH && self.pbIsSpecial?(@type))",
+		:SHORTCIRCUIT => "!(self.move==:ULTRAMEGADEATH && self.specialMove?(@type))",
 	},
 	:fieldChange => {
 		:SHORTCIRCUIT => [:AURAWHEEL, :IONDELUGE, :GIGAVOLTHAVOC, :EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, :TECTONICRAGE, :SELFDESTRUCT, :EXPLOSION, :LIGHTTHATBURNSTHESKY, :ULTRAMEGADEATH],
@@ -1352,7 +1352,7 @@ FIELDEFFECTS = {
 	:typeCondition => {},
 	:typeEffects => {},
 	:changeCondition => {
-		:FACTORY => "!(self.move==:ULTRAMEGADEATH && self.pbIsPhysical?(@type))",
+		:FACTORY => "!(self.move==:ULTRAMEGADEATH && self.physicalMove?(@type))",
 	},
 	:fieldChange => {
 		:FACTORY => [:AURAWHEEL, :PARABOLICCHARGE, :WILDCHARGE, :CHARGEBEAM, :IONDELUGE, :GIGAVOLTHAVOC, :ULTRAMEGADEATH],
@@ -2297,9 +2297,9 @@ FIELDEFFECTS = {
 		"The attack was cleansed..." => [:GHOST, :DARK],
 	},
 	:typeCondition => {
-		:FAIRY => "self.pbIsSpecial?(type)",
-		:NORMAL => "self.pbIsSpecial?(type)",
-		:DARK => "self.pbIsSpecial?(type)",
+		:FAIRY => "self.specialMove?(type)",
+		:NORMAL => "self.specialMove?(type)",
+		:DARK => "self.specialMove?(type)",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -3493,7 +3493,7 @@ FIELDEFFECTS = {
 		"The earth empowered the attack!" => [:ROCK, :GROUND],
 	},
 	:typeCondition => {
-		:GROUND => "!opponent.hasType?(:GROUND)",
+		:GROUND => "!opponent.pbHasType?(:GROUND)",
 	},
 	:typeEffects => {},
 	:changeCondition => {
@@ -3603,7 +3603,7 @@ FIELDEFFECTS = {
 		"This is no place for fairytales..." => [:FAIRY],
 	},
 	:typeCondition => {
-		:DARK => "self.pbIsPhysical?(@type)",
+		:DARK => "self.physicalMove?(@type)",
 	},
 	:typeEffects => {},
 	:changeCondition => {},
@@ -3693,7 +3693,7 @@ FIELDEFFECTS = {
 		"This is no place for fairytales..." => [:FAIRY],
 	},
 	:typeCondition => {
-		:NORMAL => "self.pbIsPhysical?(@type)",
+		:NORMAL => "self.physicalMove?(@type)",
 	},
 	:typeEffects => {},
 	:changeCondition => {},

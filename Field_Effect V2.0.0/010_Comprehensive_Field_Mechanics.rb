@@ -599,7 +599,7 @@ class Battle::Battler
     end
     
     # Call original
-    return field_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
+    return field_blocked_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
   end
 end
 
@@ -2465,8 +2465,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:SCHOOLING_WATERSURFACE,
 
 # Wave Crash - Recoil reduced to 25%
 class Battle::Move::RecoilQuarterOfDamageDealt
-  alias watersurface_pbEffectAfterAllHits pbEffectAfterAllHits if method_defined?(:pbEffectAfterAllHits)
-
   def pbEffectAfterAllHits(user, target)
     if @battle.has_field? && WATER_SURFACE_IDS.include?(@battle.current_field.id)
       if @id == :WAVECRASH
@@ -2478,7 +2476,7 @@ class Battle::Move::RecoilQuarterOfDamageDealt
         return
       end
     end
-    respond_to?(:watersurface_pbEffectAfterAllHits) ? watersurface_pbEffectAfterAllHits(user, target) : super
+    watersurface_pbEffectAfterAllHits(user, target)
   end
 end
 
@@ -7283,7 +7281,7 @@ class Battle::Move
   def pbBaseType(user)
     type = rainbow_randtype_pbBaseType(user)
     return type unless @battle.has_field? && RAINBOW_FIELD_IDS.include?(@battle.current_field.id)
-    return type unless type == :NORMAL && pbIsSpecial?(type)
+    return type unless type == :NORMAL && specialMove?(type)
     ALL_TYPES_POOL.sample
   end
 end

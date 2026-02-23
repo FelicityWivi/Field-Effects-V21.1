@@ -22,14 +22,10 @@ module FieldDataConverter
         moves.each do |move_id|
           message = move_messages&.find { |msg, mv_list| mv_list.include?(move_id) }&.first || ""
           
-          multipliers[[mult, move_id]] = [
-            :power_multiplier,
-            mult,
-            message,
+          multipliers[[:power_multiplier, mult, message]] = \
             proc { |user, target, numTargets, move, type, power, mults|
               next move.id == move_id
             }
-          ]
         end
       end
     end
@@ -41,10 +37,7 @@ module FieldDataConverter
           message = type_messages&.find { |msg, type_list| type_list.include?(type_sym) }&.first || ""
           condition = type_conditions&[type_sym]
           
-          multipliers[[mult, type_sym]] = [
-            :power_multiplier,
-            mult,
-            message,
+          multipliers[[:power_multiplier, mult, message]] = \
             proc { |user, target, numTargets, move, type, power, mults|
               next false unless type == type_sym
               if condition
@@ -60,7 +53,6 @@ module FieldDataConverter
               end
               next true
             }
-          ]
         end
       end
     end
@@ -141,48 +133,32 @@ class Battle::Field_electerrain < Battle::Field
     @seed_type = nil # Set if this field has a special seed
     
     # Define multipliers using the new format
-    # Format: [multiplier_type, multiplier_value, message, condition_proc]
+    # Format: key=[:mult_type, mult_value, "display message"], value=proc { ... }
     
     # Explosion/Self-Destruct get hyper-charged (1.5x, Electric type)
-    @multipliers[[:power_multiplier, 1.5, "explosion"]] = [
-      :power_multiplier,
-      1.5,
-      _INTL("The explosion became hyper-charged!"),
+    @multipliers[[:power_multiplier, 1.5, _INTL("The explosion became hyper-charged!")]] = \
       proc { |user, target, numTargets, move, type, power, mults|
         next [:EXPLOSION, :SELFDESTRUCT].include?(move.id)
       }
-    ]
     
     # Hurricane, Surf, etc. get hyper-charged (1.5x)
-    @multipliers[[:power_multiplier, 1.5, "water_wind"]] = [
-      :power_multiplier,
-      1.5,
-      _INTL("The attack became hyper-charged!"),
+    @multipliers[[:power_multiplier, 1.5, _INTL("The attack became hyper-charged!")]] = \
       proc { |user, target, numTargets, move, type, power, mults|
         next [:HURRICANE, :SURF, :SMACKDOWN, :MUDDYWATER, :THOUSANDARROWS].include?(move.id)
       }
-    ]
     
     # Magnet Bomb powered up (2.0x)
-    @multipliers[[:power_multiplier, 2.0, "magnet"]] = [
-      :power_multiplier,
-      2.0,
-      _INTL("The attack powered up!"),
+    @multipliers[[:power_multiplier, 2.0, _INTL("The attack powered up!")]] = \
       proc { |user, target, numTargets, move, type, power, mults|
         next move.id == :MAGNETBOMB
       }
-    ]
     
     # Electric-type moves boosted (1.5x) if user is grounded
-    @multipliers[[:power_multiplier, 1.5, "electric"]] = [
-      :power_multiplier,
-      1.5,
-      _INTL("The Electric Terrain strengthened the attack!"),
+    @multipliers[[:power_multiplier, 1.5, _INTL("The Electric Terrain strengthened the attack!")]] = \
       proc { |user, target, numTargets, move, type, power, mults|
         next false unless type == :ELECTRIC
         next !user.airborne? # Grounded Pokemon only
       }
-    ]
     
     # Add move type changes
     @effects[:base_type_change] = proc { |user, move, ret|
@@ -234,26 +210,18 @@ end
 #
 # 5. Convert damage mods and type boosts to multipliers:
 #    For each entry in :damageMods:
-#      @multipliers[[:power_multiplier, value, "key"]] = [
-#        :power_multiplier,
-#        value,
-#        _INTL("Message from :moveMessages"),
+#      @multipliers[[:power_multiplier, value, _INTL("Message from :moveMessages")]] = \
 #        proc { |user, target, numTargets, move, type, power, mults|
 #          next move.id == :MOVEID
 #        }
-#      ]
 #
 #    For each entry in :typeBoosts:
-#      @multipliers[[:power_multiplier, value, "type_key"]] = [
-#        :power_multiplier,
-#        value,
-#        _INTL("Message from :typeMessages"),
+#      @multipliers[[:power_multiplier, value, _INTL("Message from :typeMessages")]] = \
 #        proc { |user, target, numTargets, move, type, power, mults|
 #          next false unless type == :TYPENAME
 #          # Add condition from :typeCondition if it exists
 #          next true
 #        }
-#      ]
 #
 # 6. Convert type mods:
 #    @effects[:base_type_change] = proc { |user, move, ret|
@@ -357,7 +325,7 @@ class Battle::Battler
     case @battle.current_field&.id
     when :volcanic, :superheated, :volcanictop, :infernal
       # Burning field passive damage
-      return false if hasType?(:FIRE) || @effects[PBEffects::AquaRing]
+      return false if pbHasType?(:FIRE) || @effects[PBEffects::AquaRing]
       return false if hasActiveAbility?([:FLAREBOOST, :MAGMAARMOR, :FLAMEBODY, :FLASHFIRE,
                                          :WATERVEIL, :MAGICGUARD, :HEATPROOF, :WATERBUBBLE])
       # Check if using Dig or Dive
@@ -369,7 +337,7 @@ class Battle::Battler
       
     when :underwater
       # Underwater field passive damage
-      return false if hasType?(:WATER)
+      return false if pbHasType?(:WATER)
       return false if hasActiveAbility?([:SWIFTSWIM, :MAGICGUARD])
       effectiveness = Effectiveness.calculate(:WATER, *pbTypes(true))
       return false if effectiveness <= Effectiveness::NOT_VERY_EFFECTIVE_ONE
@@ -377,7 +345,7 @@ class Battle::Battler
       
     when :murkwatersurface
       # Murky water surface passive damage (poison-like)
-      return false if hasType?(:STEEL) || hasType?(:POISON)
+      return false if pbHasType?(:STEEL) || pbHasType?(:POISON)
       return false if hasActiveAbility?([:POISONHEAL, :MAGICGUARD, :WONDERGUARD, 
                                          :TOXICBOOST, :IMMUNITY, :PASTELVEIL, :SURGESURFER])
       return true
@@ -394,31 +362,31 @@ class Battle::Move
     
     case @battle.current_field&.id
     when :misty
-      defmult *= 1.5 if pbSpecialMove?(type) && target.hasType?(:FAIRY)
+      defmult *= 1.5 if specialMove?(type) && target.pbHasType?(:FAIRY)
     when :darkcrystalcavern
-      defmult *= 1.5 if target.hasType?(:DARK) || target.hasType?(:GHOST)
+      defmult *= 1.5 if target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
       defmult *= 1.33 if target.hasActiveAbility?(:PRISMARMOR)
     when :rainbow, :crystalcavern
       defmult *= 1.33 if target.hasActiveAbility?(:PRISMARMOR)
     when :dragonsden
-      defmult *= 1.3 if target.hasType?(:DRAGON)
+      defmult *= 1.3 if target.pbHasType?(:DRAGON)
     when :newworld
       defmult *= 0.9 if target.airborne?
     when :snowymountain, :icy
-      if pbPhysicalMove?(type) && target.hasType?(:ICE) && @battle.pbWeather == :Hail
+      if physicalMove?(type) && target.pbHasType?(:ICE) && @battle.pbWeather == :Hail
         defmult *= 1.5
       end
     when :desert
-      defmult *= 1.5 if pbSpecialMove?(type) && target.hasType?(:GROUND)
+      defmult *= 1.5 if specialMove?(type) && target.pbHasType?(:GROUND)
     when :dimensional
-      defmult *= 1.5 if target.hasType?(:GHOST)
+      defmult *= 1.5 if target.pbHasType?(:GHOST)
     when :frozendimension
-      defmult *= 1.2 if target.hasType?(:GHOST) || target.hasType?(:ICE)
-      defmult *= 0.8 if target.hasType?(:FIRE)
+      defmult *= 1.2 if target.pbHasType?(:GHOST) || target.pbHasType?(:ICE)
+      defmult *= 0.8 if target.pbHasType?(:FIRE)
     when :darkness2
-      defmult *= 1.1 if target.hasType?(:DARK) || target.hasType?(:GHOST)
+      defmult *= 1.1 if target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
     when :darkness3
-      defmult *= 1.2 if target.hasType?(:DARK) || target.hasType?(:GHOST)
+      defmult *= 1.2 if target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
     end
     
     return defmult
