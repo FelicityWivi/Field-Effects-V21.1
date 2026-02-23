@@ -217,6 +217,7 @@ class Battle
     return new_field
   end
 
+
   def can_create_field?(field_id)
     return true unless has_field?
     creatable_field = @current_field.creatable_field
@@ -267,8 +268,41 @@ class Battle
       Console.echo_li("Field class #{field_class_name} not found!") if $DEBUG
       return
     end
-    
-    new_field = Object.const_get(field_class_name).new(self, duration) # create the new field
+
+    # Create the field object. Rather than rely entirely on arity inspection (which
+    # can be misleading if external plugins later redefine #initialize), we simply
+    # attempt to call several common argument combinations until one succeeds. This
+    # mirrors the flexibility of Field_base's own constructor and ensures the field
+    # creation code never crashes due to an unexpected signature.
+    field_klass = Object.const_get(field_class_name)
+    # If we're about to instantiate the base field, make sure its initializer is
+    # forgiving. Other plugins (such as Enhanced Battle UI) may reopen
+    # Battle::Field_base after our plugin loads and redefine `initialize` to take
+    # no arguments, which would crash when we pass `self` below.  Patch it here
+    # to guarantee the splat-taking constructor is in place.
+    if field_klass == Battle::Field_base
+      field_klass.class_eval do
+        def initialize(*args)
+          battle   = args[0]
+          duration = args[1] || Battle::Field::INFINITE_FIELD_DURATION
+          super(battle, duration, :base)
+          @name = _INTL("Base")
+        end
+      end
+    end
+
+    new_field = nil
+    begin
+      new_field = field_klass.new(self, duration)
+    rescue ArgumentError
+      begin
+        new_field = field_klass.new(self)
+      rescue ArgumentError
+        new_field = field_klass.new
+      end
+    end
+    # It's extremely unlikely we still don't have a field; raise if so so bugs surface
+    raise "Unable to instantiate field class #{field_class_name}" if new_field.nil?
 
     removed_field = nil
     if has_field?

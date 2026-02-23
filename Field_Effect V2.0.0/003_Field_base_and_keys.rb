@@ -1,5 +1,13 @@
 class Battle::Field_base < Battle::Field
-  def initialize(battle, duration = Battle::Field::INFINITE_FIELD_DURATION)
+  # Accept any number of arguments (0, 1 or 2) so that external plugins
+  # which may instantiate this class for UI purposes without supplying both
+  # parameters don't raise an ArgumentError.  The battle object is usually
+  # provided by the caller; if it's missing we fall back to nil and hope the
+  # caller doesn't attempt to use it.
+  def initialize(*args)
+    # args[0] => battle, args[1] => duration
+    battle   = args[0]
+    duration = args[1] || Battle::Field::INFINITE_FIELD_DURATION
     super(battle, duration, :base)
     @name = _INTL("Base")
   end

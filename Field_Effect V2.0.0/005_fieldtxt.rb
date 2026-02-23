@@ -417,6 +417,56 @@ FIELDEFFECTS = {
 		:statusMods => [],
 	},
 },
+:CHESSBOARD => {
+	:name => "Chess Board",
+	:fieldMessage => [
+		"Opening variation set."
+	],
+	:graphic => ["ChessBoard"],
+	:secretPower => "PSYSHOCK",   # 14 = Lower Defense
+	:naturePower => :ANCIENTPOWER,
+	:mimicry => :PSYCHIC,
+	:damageMods => {
+		2.0 => [:BARRAGE],
+		1.5 => [:PSYCHIC_MOVE, :STRENGTH, :ANCIENTPOWER, :CONTINENTALCRUSH, :SECRETPOWER, :SHATTEREDPSYCHE,
+		        :FAKEOUT, :FEINT, :FEINTATTACK, :FIRSTIMPRESSION, :SUCKERPUNCH, :SHADOWSNEAK, :SMARTSTRIKE],
+	},
+	:accuracyMods => {},
+	:moveMessages => {
+		"The Chess Board magnified the attack!" => [:PSYCHIC_MOVE, :STRENGTH, :ANCIENTPOWER, :CONTINENTALCRUSH, :SECRETPOWER, :SHATTEREDPSYCHE],
+		"A decisive strike!" => [:FAKEOUT, :FEINT, :FEINTATTACK, :FIRSTIMPRESSION, :SUCKERPUNCH, :SHADOWSNEAK, :SMARTSTRIKE],
+		"A devastating barrage!" => [:BARRAGE],
+	},
+	:typeMods => {
+		:ROCK => [:PSYCHIC_MOVE, :STRENGTH, :ANCIENTPOWER, :CONTINENTALCRUSH, :SECRETPOWER, :SHATTEREDPSYCHE, :BARRAGE],
+	},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {},
+	:typeMessages => {},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:moveStatStageMods => {
+		:CALMMIND  => { stages: 2 },
+		:NASTYPLOT => { stages: 4 },
+	},
+	:statusMods => [:CALMMIND, :NASTYPLOT, :NORETREAT, :FALSESURRENDER, :KINGSSHIELD, :OBSTRUCT, :TRICKROOM],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :SYNTHETICSEED,
+		:effect => :MagicCoat,
+		:duration => true,
+		:message => "{1} is shielded by a magic coat!",
+		:animation => :MAGICCOAT,
+		:stats => {
+			:SPECIAL_ATTACK => 1,
+		},
+	},
+},
 :VOLCANIC => {
 	:name => "Volcanic Field",
 	:fieldMessage => [
@@ -548,7 +598,7 @@ FIELDEFFECTS = {
 	:naturePower => :MUDDYWATER,
 	:mimicry => :WATER,
 	:damageMods => {
-		1.5 => [:MUDBOMB, :MUDSHOT, :MUDSLAP, :MUDDYWATER, :SLUDGEWAVE, :GUNKSHOT, :BRINE, :SMACKDOWN, :THOUSANDARROWS, :HYDROVORTEX, :SAVAGESPINOUT],
+		1.5 => [:MUDBOMB, :MUDSHOT, :MUDSLAP, :MUDDYWATER, :SLUDGE, :SLUDGEBOMB, :SLUDGEWAVE, :GUNKSHOT, :BRINE, :SMACKDOWN, :THOUSANDARROWS, :HYDROVORTEX, :SAVAGESPINOUT, :MUDBARRAGE],
 		0.25 => [:EARTHQUAKE, :MAGNITUDE, :BULLDOZE],
 		0 => [:SELFDESTRUCT, :EXPLOSION, :MINDBLOWN]
 	},
@@ -556,7 +606,7 @@ FIELDEFFECTS = {
 		100 => [:SLEEPPOWDER, :STUNSPORE, :POISONPOWDER],
 	},
 	:moveMessages => {
-		"The murk strengthened the attack!" => [:MUDBOMB, :MUDSHOT, :MUDSLAP, :MUDDYWATER, :SLUDGEWAVE, :GUNKSHOT, :BRINE, :SMACKDOWN, :THOUSANDARROWS, :HYDROVORTEX],
+		"The murk strengthened the attack!" => [:MUDBOMB, :MUDSHOT, :MUDSLAP, :MUDDYWATER, :SLUDGE, :SLUDGEBOMB, :SLUDGEWAVE, :GUNKSHOT, :BRINE, :SMACKDOWN, :THOUSANDARROWS, :HYDROVORTEX, :MUDBARRAGE],
 		"The attack dissipated in the soggy ground..." => [:EARTHQUAKE, :MAGNITUDE, :BULLDOZE],
 		"The dampness prevents the explosion!" => [:SELFDESTRUCT, :EXPLOSION, :MINDBLOWN],
 		"There are bugs EVERYWHERE!" => [:SAVAGESPINOUT],
@@ -582,6 +632,10 @@ FIELDEFFECTS = {
 	:fieldChange => {},
 	:dontChangeBackup => [],
 	:changeMessage => {},
+	:moveStatStageMods => {
+		:STRUGGLEBUG => { stages: 2 },
+		:MUDSHOT     => { stages: 2 },
+	},
 	:statusMods => [:SLEEPPOWDER, :STUNSPORE, :POISONPOWDER, :AQUARING, :STRENGTHSAP, :LEECHSEED, :STRINGSHOT, :SPIDERWEB],
 	:changeEffects => {},
 	:seed => {
@@ -605,13 +659,14 @@ FIELDEFFECTS = {
 	:naturePower => :AURORABEAM,
 	:mimicry => :DRAGON,
 	:damageMods => {
-		1.5 => [:SILVERWIND, :MYSTICALFIRE, :DRAGONPULSE, :TRIATTACK, :SACREDFIRE, :FIREPLEDGE, :WATERPLEDGE, :GRASSPLEDGE, :AURORABEAM, :JUDGMENT, :RELICSONG, :HIDDENPOWER, :SECRETPOWER, :WEATHERBALL, :MISTBALL, :HEARTSTAMP, :MOONBLAST, :ZENHEADBUTT, :SPARKLINGARIA, :FLEURCANNON, :PRISMATICLASER, :TWINKLETACKLE, :OCEANICOPERETTA, :SOLARBEAM, :SOLARBLADE, :DAZZLINGGLEAM, :HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT, :HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE, :HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE, :HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR, :HIDDENPOWERSTE, :HIDDENPOWERFAI],
+		1.5 => [:SILVERWIND, :MYSTICALFIRE, :DRAGONPULSE, :TRIATTACK, :SACREDFIRE, :FIREPLEDGE, :WATERPLEDGE, :GRASSPLEDGE, :AURORABEAM, :JUDGMENT, :RELICSONG, :HIDDENPOWER, :SECRETPOWER, :MISTBALL, :HEARTSTAMP, :MOONBLAST, :ZENHEADBUTT, :SPARKLINGARIA, :FLEURCANNON, :PRISMATICLASER, :TWINKLETACKLE, :OCEANICOPERETTA, :SOLARBEAM, :SOLARBLADE, :DAZZLINGGLEAM, :MIRRORBEAM, :HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT, :HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE, :HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE, :HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR, :HIDDENPOWERSTE, :HIDDENPOWERFAI],
+		2.0 => [:WEATHERBALL],
 		0.5 => [:DARKPULSE, :SHADOWBALL, :NIGHTDAZE, :NEVERENDINGNIGHTMARE],
 		0 => [:NIGHTMARE]
 	},
 	:accuracyMods => {},
 	:moveMessages => {
-		"The attack was rainbow-charged!" => [:SILVERWIND, :MYSTICALFIRE, :DRAGONPULSE, :TRIATTACK, :SACREDFIRE, :FIREPLEDGE, :WATERPLEDGE, :GRASSPLEDGE, :AURORABEAM, :JUDGMENT, :RELICSONG, :HIDDENPOWER, :SECRETPOWER, :WEATHERBALL, :MISTBALL, :HEARTSTAMP, :MOONBLAST, :ZENHEADBUTT, :SPARKLINGARIA, :FLEURCANNON, :PRISMATICLASER, :TWINKLETACKLE, :OCEANICOPERETTA, :SOLARBEAM, :SOLARBLADE, :DAZZLINGGLEAM, :HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT, :HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE, :HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE, :HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR, :HIDDENPOWERSTE, :HIDDENPOWERFAI],
+		"The attack was rainbow-charged!" => [:SILVERWIND, :MYSTICALFIRE, :DRAGONPULSE, :TRIATTACK, :SACREDFIRE, :FIREPLEDGE, :WATERPLEDGE, :GRASSPLEDGE, :AURORABEAM, :JUDGMENT, :RELICSONG, :HIDDENPOWER, :SECRETPOWER, :WEATHERBALL, :MISTBALL, :HEARTSTAMP, :MOONBLAST, :ZENHEADBUTT, :SPARKLINGARIA, :FLEURCANNON, :PRISMATICLASER, :TWINKLETACKLE, :OCEANICOPERETTA, :SOLARBEAM, :SOLARBLADE, :DAZZLINGGLEAM, :MIRRORBEAM, :HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT, :HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE, :HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE, :HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR, :HIDDENPOWERSTE, :HIDDENPOWERFAI],
 		"The rainbow softened the attack..." => [:DARKPULSE, :SHADOWBALL, :NIGHTDAZE, :NEVERENDINGNIGHTMARE],
 		"The rainbow ensures good dreams." => [:NIGHTMARE]
 	},
@@ -635,6 +690,14 @@ FIELDEFFECTS = {
 	:dontChangeBackup => [],
 	:changeMessage => {
 		 "The rainbow was consumed!" => [:LIGHTTHATBURNSTHESKY],
+	},
+	:noCharging => [:SOLARBEAM, :SOLARBLADE],
+	:noChargingMessages => {
+		"The rainbow powered up the attack!" => [:SOLARBEAM, :SOLARBLADE],
+	},
+	:moveStatStageMods => {
+		:MEDITATE    => { stages: 2 },
+		:COSMICPOWER => { stages: 2 },
 	},
 	:statusMods => [:COSMICPOWER, :MEDITATE, :WISH, :LIFEDEW, :AURORAVEIL],
 	:changeEffects => {},
@@ -1200,7 +1263,7 @@ FIELDEFFECTS = {
 		"Machines whir in the background."
 	],
 	:graphic => ["Factory"],
-	:secretPower => "MAGNETBOMB",
+	:secretPower => "WATERPULSE",  # 5 = Lower Attack
 	:naturePower => :GEARGRIND,
 	:mimicry => :STEEL,
 	:damageMods => {
@@ -1235,6 +1298,12 @@ FIELDEFFECTS = {
 		 "All the light was consumed!" => [:LIGHTTHATBURNSTHESKY],
 		 "The field shorted out!" => [:AURAWHEEL, :IONDELUGE, :GIGAVOLTHAVOC],
 	},
+	:moveStatStageMods => {
+		:METALSOUND   => { stages: 2 },
+		:IRONDEFENSE  => { stages: 2 },
+		:SHIFTGEAR    => { stages: 2 },
+		:AUTOTOMIZE   => { stages: 2 },
+	},
 	:statusMods => [:AUTOTOMIZE, :IRONDEFENSE, :METALSOUND, :SHIFTGEAR, :MAGNETRISE, :GEARUP, :MAGNETRISE],
 	:changeEffects => {},
 	:seed => {
@@ -1254,7 +1323,7 @@ FIELDEFFECTS = {
 		"Bzzt!"
 	],
 	:graphic => ["ShortCircuit"],
-	:secretPower => "ELECTROBALL",
+	:secretPower => "THUNDERBOLT",  # 1 = Paralyze
 	:naturePower => :DISCHARGE,
 	:mimicry => :ELECTRIC,
 	:damageMods => {
@@ -1292,6 +1361,10 @@ FIELDEFFECTS = {
 	:changeMessage => {
 		 "SYSTEM ONLINE." => [:AURAWHEEL, :PARABOLICCHARGE, :WILDCHARGE, :CHARGEBEAM, :IONDELUGE, :GIGAVOLTHAVOC, :ULTRAMEGADEATH],
 	},
+	:moveStatStageMods => {
+		:METALSOUND  => { stages: 2 },
+		:FLASH       => { stages: 2 },
+	},
 	:statusMods => [:FLASH, :METALSOUND, :MAGNETRISE],
 	:changeEffects => {},
 	:seed => {
@@ -1318,7 +1391,7 @@ FIELDEFFECTS = {
 		1.5 => [:VINEWHIP, :POWERWHIP, :MUDSLAP, :MUDBOMB, :MUDSHOT],
 		0.25 => [:EARTHQUAKE, :MAGNITUDE, :BULLDOZE],
 		2.0 => [:SPITUP],
-		1.2 => [:OCTAZOOKA, :SLUDGE, :GUNKSHOT, :SLUDGEWAVE, :SLUDGEBOMB],
+		1.2 => [:OCTAZOOKA, :SLUDGE, :GUNKSHOT, :SLUDGEWAVE, :SLUDGEBOMB, :ACIDDOWNPOUR],
 	},
 	:accuracyMods => {},
 	:moveMessages => {
@@ -1341,6 +1414,7 @@ FIELDEFFECTS = {
 	:fieldChange => {},
 	:dontChangeBackup => [],
 	:changeMessage => {},
+	:moveStatStageMods => {},
 	:statusMods => [:SWALLOW, :STEALTHROCK, :SPIKES, :TOXICSPIKES, :STICKYWEB],
 	:changeEffects => {},
 	:seed => {
@@ -1744,7 +1818,7 @@ FIELDEFFECTS = {
 		"1n!taliz3 .b//////attl3"
 	],
 	:graphic => ["Glitch","99"],
-	:secretPower => "TECHNOBLAST",
+	:secretPower => "PSYCHIC",  # 4 = Lower Speed
 	:naturePower => :METRONOME,
 	:mimicry => :QMARKS,
 	:damageMods => {
@@ -1771,6 +1845,7 @@ FIELDEFFECTS = {
 	:fieldChange => {},
 	:dontChangeBackup => [],
 	:changeMessage => {},
+	:moveStatStageMods => {},
 	:statusMods => [:METRONOME],
 	:changeEffects => {},
 	:seed => {
@@ -1781,6 +1856,7 @@ FIELDEFFECTS = {
 		:animation => :AMNESIA,
 		:stats => {
 			:DEFENSE => 1,
+			:SPECIAL_DEFENSE => 1,
 		},
 	},
 },
@@ -1857,7 +1933,7 @@ FIELDEFFECTS = {
 		"Darkness is gathering..."
 	],
 	:graphic => ["DarkCrystalCavern"],
-	:secretPower => "DARKPULSE",
+	:secretPower => "SHADOWBALL",  # Flinch effect (effect 11 in parser)
 	:naturePower => :DARKPULSE,
 	:mimicry => :DARK,
 	# Ability modifications
@@ -2255,7 +2331,7 @@ FIELDEFFECTS = {
 		"Once upon a time..."
 	],
 	:graphic => ["FairyTale"],
-	:secretPower => "SLASH",
+	:secretPower => "SEEDBOMB",  # Sleep effect (effect 2 in parser)
 	:naturePower => :SECRETSWORD,
 	:mimicry => :FAIRY,
 	:damageMods => {
@@ -2267,6 +2343,12 @@ FIELDEFFECTS = {
 		"The blade cuts true!" => [:NIGHTSLASH, :LEAFBLADE, :PSYCHOCUT, :SMARTSTRIKE, :AIRSLASH, :SOLARBLADE, :RAZORSHELL, :BEHEMOTHBLADE],
 		"The magical energy strengthened the attack!" => [:MAGICALLEAF, :MYSTICALFIRE, :ANCIENTPOWER, :RELICSONG, :SPARKLINGARIA, :MOONGEISTBEAM, :FLEURCANNON, :BEHEMOTHBASH, :MISTBALL, :OCEANICOPERETTA, :MENACINGMOONRAZEMAELSTROM],
 		"True love never hurt so badly!" => [:DRAININGKISS],
+	},
+	# moveStatStageMods: amplified stat-change moves (§ manual l.1674-1675)
+	# Noble Roar amplification (-2 Atk, -2 SpAtk) is hardcoded in 010 (multi-stat)
+	:moveStatStageMods => {
+		:ACIDARMOR   => { stages: 2, message: "The fairy magic amplified the Defense boost!" },
+		:SWORDSDANCE => { stages: 2, message: "The fairy power honed the blade to perfection!" },
 	},
 	:typeMods => {},
 	:typeAddOns => {
@@ -2284,11 +2366,22 @@ FIELDEFFECTS = {
 	},
 	:typeCondition => {},
 	:typeEffects => {},
+	# Single-stat switch-in ability boosts (§ manual l.1696-1705)
+	# Multi-stat boosts (Dauntless Shield, Power of Alchemy, Intrepid Sword, Stance Change) are hardcoded in 010
+	:abilityStatBoosts => {
+		:BATTLEARMOR => { stat: :DEFENSE,         stages: 1, message: "{1}'s Battle Armor hardened!" },
+		:SHELLARMOR  => { stat: :DEFENSE,         stages: 1, message: "{1}'s Shell Armor fortified!" },
+		:MAGICGUARD  => { stat: :SPECIAL_DEFENSE, stages: 1, message: "{1}'s Magic Guard fortified its spirit!" },
+		:MAGICBOUNCE => { stat: :SPECIAL_DEFENSE, stages: 1, message: "{1}'s Magic Bounce shielded its mind!" },
+		:MIRRORARMOR => { stat: :SPECIAL_DEFENSE, stages: 1, message: "{1}'s Mirror Armor reflected its resolve!" },
+		:PASTELVEIL  => { stat: :SPECIAL_DEFENSE, stages: 1, message: "{1}'s Pastel Veil fortified its spirit!" },
+		:MAGICIAN    => { stat: :SPECIAL_ATTACK,  stages: 1, message: "{1}'s Magician power surged!" },
+	},
 	:changeCondition => {},
 	:fieldChange => {},
 	:dontChangeBackup => [],
 	:changeMessage => {},
-	:statusMods => [:KINGSSHIELD, :CRAFTYSHIELD, :FLOWERSHIELD, :ACIDARMOR, :NOBLEROAR, :SWORDSDANCE, :WISH, :HEALINGWISH, :MIRACLEEYE, :FORESTSCURSE, :FLORALHEALING],
+	:statusMods => [:KINGSSHIELD, :CRAFTYSHIELD, :FLOWERSHIELD, :ACIDARMOR, :NOBLEROAR, :SWORDSDANCE, :WISH, :HEALINGWISH, :MIRACLEEYE, :FORESTSCURSE, :FLORALHEALING, :STRANGESTEAM, :STANCECHANGE],
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :MAGICALSEED,
@@ -2306,11 +2399,16 @@ FIELDEFFECTS = {
 		"If you wish to slay a dragon..."
 	],
 	:graphic => ["DragonsDen"],
-	:secretPower => "DRAGONPULSE",
+	:secretPower => "FLAMETHROWER",
 	:naturePower => :DRAGONPULSE,
 	:mimicry => :DRAGON,
+	:noCharging => [:FLY, :BOUNCE],
+	:noChargingMessages => {
+		:FLY => "The dragon's wrath pulls the attack down instantly!",
+		:BOUNCE => "The scorching lava prevents a high bounce!",
+	},
 	:damageMods => {
-		1.5 => [:MEGAKICK, :MAGMASTORM, :LAVAPLUME, :STOMPINGTANTRUM, :EARTHPOWER, :DIAMONDSTORM, :SHELLTRAP, :POWERGEM, :ROCKCLIMB, :STRENGTH],             
+		1.5 => [:MEGAKICK, :MAGMASTORM, :LAVAPLUME, :STOMPINGTANTRUM, :EARTHPOWER, :DIAMONDSTORM, :SHELLTRAP, :POWERGEM, :ROCKCLIMB, :STRENGTH, :MATRIXSHOT, :MAGMADRIFT],
 		2.0 => [:SMACKDOWN, :THOUSANDARROWS, :DRAGONASCENT, :PAYDAY, :MISTBALL, :LUSTERPURGE,],
 		0 => [:GRASSYTERRAIN, :PSYCHICTERRAIN, :MISTYTERRAIN, :ELECTRICTERRAIN, :MIST, :HAIL],
 	},
@@ -2321,7 +2419,8 @@ FIELDEFFECTS = {
 		"Trial of the Dragon!!!" => [:MEGAKICK],
 		"Wrath of the Dragon!!!" => [:STOMPINGTANTRUM],
 		"Unrivaled Power!" => [:STRENGTH, :ROCKCLIMB],
-		"The lava strengthened the attack!" => [:MAGMASTORM, :LAVAPLUME, :EARTHPOWER, :SHELLTRAP],
+		"The lava strengthened the attack!" => [:MAGMASTORM, :LAVAPLUME, :EARTHPOWER, :SHELLTRAP, :MAGMADRIFT],
+		"The draconic energy guided the shot!" => [:MATRIXSHOT],
 		"{1} was knocked into the lava!" => [:SMACKDOWN, :THOUSANDARROWS],
 		"The draconic energy boosted the attack!" => [:DRAGONASCENT, :MISTBALL, :LUSTERPURGE],
 		"Sparkling treasure!" => [:PAYDAY, :POWERGEM, :DIAMONDSTORM],
@@ -2358,6 +2457,9 @@ FIELDEFFECTS = {
 		 "The lava solidified!" => [:OCEANICOPERETTA, :HYDROVORTEX],
 		 "The mist-ical energy altered the surroundings!" => [:MISTBALL],
 	},
+	# Dragon Dance (+2 Atk/Speed), Noble Roar (-2 Atk/SpAtk), Coil (+2 Atk/Def/Acc)
+	# are multi-stat moves amplified in 010_Comprehensive_Field_Mechanics.rb
+	:moveStatStageMods => {},
 	:statusMods => [:DRAGONDANCE, :NOBLEROAR, :COIL, :STEALTHROCK],
 	:changeEffects => {},
 	:seed => {
@@ -2679,9 +2781,8 @@ FIELDEFFECTS = {
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :MAGICALSEED,
-		:effect => :HyperBeam,
-		:duration => 1,
-		:message => "{1} was normalized!",
+		# Type change to Normal + Normalize effect hardcoded in 010 (via on_seed_use hook)
+		:message => "{1} was normalized! Its type became Normal!",
 		:animation => :SHARPEN,
 		:stats => {},
 	},
@@ -2762,7 +2863,7 @@ FIELDEFFECTS = {
 		"Darkness Radiates."
 	],
 	:graphic => ["Dimensional"],
-	:secretPower => "DARKPULSE",
+	:secretPower => "SHADOWBALL",  # Flinch effect (effect 11 in parser)
 	:naturePower => :DARKPULSE,
 	:mimicry => :DARK,
 	:damageMods => {
@@ -2787,7 +2888,7 @@ FIELDEFFECTS = {
 	:typeAddOns => {
 	},
 	:moveEffects => {
-		"@battle.field_counters.counter += 1" => [:BLIZZARD, :SHEERCOLD],
+		"@battle.field_counters.counter += 1" => [:BLIZZARD, :SHEERCOLD, :COLDTRUTH],
 		"@battle.field_counters.counter = 2" => [:ICEBURN, :FREEZESHOCK, :GLACIATE],
 	},
 	:typeBoosts => {
@@ -2822,12 +2923,90 @@ FIELDEFFECTS = {
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :MAGICALSEED,
-		:effect => nil,
-		:duration => nil,
-		:message => "",
+		# Trick Room effect is battle-wide; hardcoded in 010 via apply_field_effect hook
+		:message => "The Magical Seed raised {1}'s Defense! The dimensions warped!",
 		:animation => :TRICKROOM,
 		:stats => {
 			:DEFENSE => 1,
+		},
+	},
+},
+:FROZENDIMENSION => {
+	:name => "Frozen Dimensional Field",
+	:fieldMessage => [
+		"Hate and anger radiates."
+	],
+	:graphic => ["FrozenDimensional"],
+	:secretPower => "BLIZZARD",
+	:naturePower => :ICEBEAM,
+	:mimicry => :ICE,
+	:noCharging => [:ICEBURN, :FREEZESHOCK],
+	:noChargingMessages => {
+		:ICEBURN => "The frozen dimension accelerated the attack!",
+		:FREEZESHOCK => "The frozen dimension accelerated the attack!",
+	},
+	:damageMods => {
+		1.5 => [:RAGINGFURY, :OUTRAGE, :THRASH, :LASHOUT, :FREEZINGGLARE, :ROAROFTIME, :FIERYWRATH, :RAGE, :STOMPINGTANTRUM],
+		1.2 => [:HYPERSPACEFURY, :HYPERSPACEHOLE, :SURF, :MUDDYWATER, :WATERPULSE, :HYDROPUMP, :NIGHTSLASH, :DARKPULSE],
+		0   => [:TEATIME, :COURTCHANGE],
+	},
+	:accuracyMods => {
+		100 => [:DARKVOID],
+	},
+	:moveMessages => {
+		"The cold fury raged on!" => [:RAGINGFURY, :OUTRAGE, :THRASH, :LASHOUT, :STOMPINGTANTRUM],
+		"Time itself froze in place!" => [:ROAROFTIME],
+		"A glacial hatred was unleashed!" => [:FREEZINGGLARE, :FIERYWRATH, :RAGE],
+		"The dimensional rift enhanced the attack!" => [:HYPERSPACEFURY, :HYPERSPACEHOLE],
+		"The frozen waters surged with power!" => [:SURF, :MUDDYWATER, :WATERPULSE, :HYDROPUMP],
+		"The frozen darkness cut deep!" => [:NIGHTSLASH, :DARKPULSE],
+		"The dark void found its mark!" => [:DARKVOID],
+		"But it failed..." => [:TEATIME, :COURTCHANGE],
+	},
+	:typeMods => {
+		:ICE => [:SURF, :MUDDYWATER, :WATERPULSE, :HYDROPUMP, :NIGHTSLASH, :DARKPULSE],
+	},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.5 => [:DARK],
+		1.2 => [:ICE],
+	},
+	:typeMessages => {
+		"The frozen hatred boosted the dark attack!" => [:DARK],
+		"The frozen dimension boosted the ice attack!" => [:ICE],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {
+		:DIMENSIONAL => [:BLASTBURN, :INFERNO, :LAVAPLUME, :HEATWAVE, :ERUPTION, :FLAMEBURST, :BURNUP, :RAGINGFURY],
+		:ICY         => [:PURIFY],
+	},
+	:dontChangeBackup => [],
+	:changeMessage => {
+		"The flames melted through the frost!" => [:BLASTBURN, :INFERNO, :LAVAPLUME, :HEATWAVE, :ERUPTION, :FLAMEBURST, :BURNUP, :RAGINGFURY],
+		"The dimension was purified!" => [:PURIFY],
+	},
+	# Snow Warning / Hail lasts 8 turns per the manual
+	:weatherDuration => {
+		:Hail => 8, :Snow => 8,
+	},
+	# statusMods flags moves with special field effects for highlighting/custom logic:
+	# SNARL lowers SpAtk by 2 stages, PARTINGSHOT additionally lowers Speed,
+	# AURORAVEIL works without Hail, RAGE becomes 60bp Dark-type always raises Atk,
+	# DRAGONRAGE deals 140 flat damage, POWERTRIP gains 40bp per boost (not 20bp)
+	:statusMods => [:SNARL, :PARTINGSHOT, :AURORAVEIL, :RAGE, :DRAGONRAGE, :POWERTRIP],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :ELEMENTALSEED,
+		:effect => nil,
+		:duration => nil,
+		# Full effect: +2 Speed + confuse + taunt + torment — secondary effects need custom implementation
+		:message => "{1} was sped up and overwhelmed by the frozen dimension!",
+		:animation => nil,
+		:stats => {
+			:SPEED => 2,
 		},
 	},
 },
@@ -3015,9 +3194,19 @@ FIELDEFFECTS = {
 		"The sky is filled with clouds. "
 	],
 	:graphic => ["GoldenArena"],
-	:secretPower => "WINGATTACK",
+	# Secret Power causes Confusion on Sky Field (override in 010 via EffectDependsOnEnvironment).
+	# Parser has no confuse effect — using AIRSLASH placeholder (effect 12) so base move works;
+	# the confuse application is injected in 010.
+	:secretPower => "AIRSLASH",
 	:naturePower => :SKYATTACK,
 	:mimicry => :FLYING,
+	:noCharging => [:RAZORWIND, :SKYATTACK, :BOUNCE, :FLY],
+	:noChargingMessages => {
+		:RAZORWIND => "The open skies let the razor winds loose instantly!",
+		:SKYATTACK => "The heavens answered the call immediately!",
+		:BOUNCE    => "The sky currents carry the leap instantly!",
+		:FLY       => "The updrafts launch the attack without delay!",
+	},
 	:damageMods => {
 		1.5 => [:ICYWIND, :SILVERWIND, :OMINOUSWIND, :FAIRYWIND, :AEROBLAST, :FLYINGPRESS, :SKYUPPERCUT, :THUNDERSHOCK, :THUNDERBOLT, :STEELWING, :DRAGONDARTS, :GRAVAPPLE, :DRAGONASCENT, :THUNDER, :TWISTER, :RAZORWIND, :DIVE, :ESPERWING, :BLEAKWINDSTORM],
 		1.3 => [:SPRINGTIDESTORM, :WINDBOLTSTORM, :SANDSEARSTORM],
@@ -3054,6 +3243,12 @@ FIELDEFFECTS = {
 	:changeMessage => {
 		 "The battle has been brought down to the mountains!" => [:GRAVITY, :INGRAIN, :THOUSANDARROWS, :SMACKDOWN, :GRAVAPPLE],
 	},
+	# All weather lasts 8 turns per the manual; Tailwind duration handled by :tailwindDuration key
+	:weatherDuration => {
+		:Sun => 8, :HarshSun => 8, :Rain => 8, :HeavyRain => 8,
+		:Sandstorm => 8, :Hail => 8, :Snow => 8, :StrongWinds => 8,
+	},
+	:tailwindDuration => 4,  # Base 4 turns; field extends to 8 via tailwind_duration key (003_Field_base_and_keys)
 	:statusMods => [:MIRRORMOVE, :TAILWIND, :SUNNYDAY, :HAIL, :SANDSTORM, :RAINDANCE],
 	:changeEffects => {},
 	:seed => {
@@ -3074,7 +3269,7 @@ FIELDEFFECTS = {
 		"All eyes are on the combatants!"
 	],
 	:graphic => ["Colosseum"],
-	:secretPower => "POWERUPPUNCH",
+	:secretPower => "POWERUPPUNCH",  # Overridden in 010 to raise user Attack
 	:naturePower => :BEATUP,
 	:mimicry => :STEEL,
 	:damageMods => {
@@ -3113,6 +3308,10 @@ FIELDEFFECTS = {
 	:dontChangeBackup => [],
 	:changeMessage => {
 	},
+	:moveStatStageMods => {
+		:SWORDSDANCE => { stages: 4 },
+		:HOWL        => { stages: 2 },
+	},
 	:statusMods => [:SWORDSDANCE, :KINGSSHIELD, :HOWL, :NORETREAT, :ROAR, :SWAGGER, :FLATTER],
 	:changeEffects => {},
 	:seed => {
@@ -3126,18 +3325,76 @@ FIELDEFFECTS = {
 		},
 	},
 },
+:MIRRORARENA => {
+	:name => "Mirror Arena",
+	:fieldMessage => [
+		"Mirrors are layed around the field!"
+	],
+	:graphic => ["MirrorArena"],
+	:secretPower => "FLASHCANNON",  # Custom: lower Evasion — overridden in 010
+	:naturePower => :MIRRORSHOT,
+	:mimicry => :STEEL,
+	:damageMods => {
+		2.0 => [:MIRRORSHOT],
+		1.5 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DOOMDESY,
+		        :DAZZLINGGLEAM, :TECHNOBLAST, :PRISMATICLASER, :PHOTONGEYSER],
+	},
+	:accuracyMods => {
+		1000 => [:MIRRORSHOT, :AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE,
+		         :DAZZLINGGLEAM, :TECHNOBLAST, :PRISMATICLASER, :PHOTONGEYSER],
+	},
+	:moveMessages => {
+		"The mirrors strengthened the attack!" => [:MIRRORSHOT],
+		"The reflected light was blinding!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON,
+			:LUSTERPURGE, :DAZZLINGGLEAM, :TECHNOBLAST, :PRISMATICLASER, :PHOTONGEYSER],
+		"The mirror arena shattered!" => [:EARTHQUAKE, :BULLDOZE, :BOOMBURST, :HYPERVOICE, :MAGNITUDE, :TECTONICRAGE],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:moveEffects => {
+		"@battle.pbChangeField(:INDOOR)" => [:EARTHQUAKE, :BULLDOZE, :BOOMBURST, :HYPERVOICE, :MAGNITUDE, :TECTONICRAGE],
+	},
+	:typeBoosts => {},
+	:typeMessages => {},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {
+		:INDOOR => [:EARTHQUAKE, :BULLDOZE, :BOOMBURST, :HYPERVOICE, :MAGNITUDE, :TECTONICRAGE],
+	},
+	:dontChangeBackup => [],
+	:changeMessage => {
+		"The mirrors shattered!" => [:EARTHQUAKE, :BULLDOZE, :BOOMBURST, :HYPERVOICE, :MAGNITUDE, :TECTONICRAGE],
+	},
+	:moveStatStageMods => {
+		:FLASH      => { stages: 2 },
+		:DOUBLETEAM => { stages: 2 },
+	},
+	:statusMods => [:FLASH, :DOUBLETEAM, :MIRRORCOAT, :MIRRORMOVE, :LIGHTSCREEN, :REFLECT, :AURORAVEIL],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :SYNTHETICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => "{1}'s Evasion rose sharply!",
+		:animation => :DOUBLETEAM,
+		:stats => {},
+		:evasion => 2,
+	},
+},
 :INFERNAL => {
 	:name => "Infernal Field",
 	:fieldMessage => [
 		"The souls of the damned burn on."
 	],
 	:graphic => ["Infernal"],
-	:secretPower => "INFERNO",
+	# "FLAMETHROWER" maps to effect 10 (Burn) in parse_secret_power -- correct per manual
+	:secretPower => "FLAMETHROWER",
 	:naturePower => :PUNISHMENT,
 	:mimicry => :FIRE,
 	:damageMods => {
 		2.0 => [:PUNISHMENT, :SMOG, :DREAMEATER],
-		1.5 => [:BLASTBURN, :EARTPOWER, :INFERNOOVERDRIVE, :PRECIPICEBLADES, :INFERNO, :RAGINGFURY, :INFERNALPARADE],
+		1.5 => [:BLASTBURN, :EARTHPOWER, :INFERNOOVERDRIVE, :PRECIPICEBLADES, :INFERNO, :RAGINGFURY, :INFERNALPARADE],
 		0  => [:RAINDANCE, :HAIL],
 	},
 	:accuracyMods => {
@@ -3145,7 +3402,7 @@ FIELDEFFECTS = {
 	},
 	:moveMessages => {
 		"Hellish Suffering!" => [:PUNISHMENT, :SMOG, :DREAMEATER],
-		"Infernal flames strengthened the attack" => [:BLASTBURN, :EARTPOWER, :INFERNOOVERDRIVE, :PRECIPICEBLADES, :INFERNO, :RAGINGFURY, :INFERNALPARADE],
+		"Infernal flames strengthened the attack!" => [:BLASTBURN, :EARTHPOWER, :INFERNOOVERDRIVE, :PRECIPICEBLADES, :INFERNO, :RAGINGFURY, :INFERNALPARADE],
 		"The hail melted away." => [:HAIL],
 		"The rain evaporated." => [:RAINDANCE],
 	},
@@ -3165,21 +3422,24 @@ FIELDEFFECTS = {
 		"The hellfire burnt out the attack!" => [:FAIRY, :WATER],
 	},
 	:typeCondition => {
-		:FAIRY => "@move != :SPIRITBREAK",
+		# Spirit Break is explicitly excluded from the FAIRY nerf per the manual
+		:FAIRY => "move.id != :SPIRITBREAK",
 	},
 	:typeEffects => {},
 	:changeCondition => {
 	},
 	:fieldChange => {
-		:DIMENSIONAL => [:GLACIATE],
+		:FROZENDIMENSION => [:GLACIATE],
 		:VOLCANICTOP => [:JUDGEMENT, :ORIGINPULSE, :PURIFY],
 	},
 	:dontChangeBackup => [],
 	:changeMessage => {
-		 "The hellish landscape was doused of its fire!" => [:GLACIATE],
+		 "The frozen hellscape transcends dimensions!" => [:GLACIATE],
 		 "The hellish landscape was purified!" => [:JUDGEMENT, :ORIGINPULSE, :PURIFY],
 	},
-	:statusMods => [:WILLOWISP, :DARKVOID, :TORMENT, :NIGHTMARE, :STEALTHROCK],
+	# NASTYPLOT: stat-change amplified; TORMENT/NIGHTMARE: custom passive effects;
+	# STEALTHROCK: Fire-type damage; WILLOWISP/DARKVOID/INFERNO: never miss (also in accuracyMods)
+	:statusMods => [:WILLOWISP, :DARKVOID, :TORMENT, :NIGHTMARE, :STEALTHROCK, :NASTYPLOT],
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :ELEMENTALSEED,
@@ -3199,7 +3459,7 @@ FIELDEFFECTS = {
 		"The core is pulling you in...",
 	],
 	:graphic => ["DeepEarth","Zeight","Zeight2","Zeight3","Zeight4"],
-	:secretPower => "HEAVYSLAM",
+	:secretPower => "ROCKSLIDE",  # 7 = Flinch
 	:naturePower => :GRAVITY,
 	:mimicry => :GROUND,
 	:damageMods => {
@@ -3243,7 +3503,17 @@ FIELDEFFECTS = {
 	:dontChangeBackup => [],
 	:changeMessage => {
 	},
+	:moveStatStageMods => {
+		:AUTOTOMIZE   => { stages: 2 },
+		:ROTOTILLER   => { stages: 2 },
+		:MAGNETFLUX   => { stages: 2 },
+		:EERIEIMPULSE => { stages: 2 },
+	},
 	:statusMods => [:AUTOTOMIZE, :GEOMANCY, :ROTOTILLER, :MAGNETFLUX, :EERIEIMPULSE, :MAGNETRISE, :GRAVITY, :TOPSYTURVY, :SEISMICTOSS, :PSYWAVE],
+	:noCharging => [:GEOMANCY],
+	:noChargingMessages => {
+		"The gravity compressed the charging time!" => [:GEOMANCY],
+	},
 	:changeEffects => {},
 	:seed => {
 		:seedtype => :TELLURICSEED,
@@ -3777,5 +4047,203 @@ FIELDEFFECTS = {
 			:SPECIAL_ATTACK => 1,
 		},
 	},
+
+:STARLIGHTARENA => {
+	:name => "Starlight Arena",
+	:fieldMessage => [
+		"Starlight fills the battlefield."
+	],
+	:graphic => ["StarLight"],
+	:secretPower => "PSYWAVE",  # 14 = Lower Sp. Def
+	:naturePower => :MOONBLAST,
+	:mimicry => :DARK,
+	:damageMods => {
+		1.5 => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE, :DAZZLINGGLEAM, :MIRRORSHOT,
+		        :MOONBLAST, :TECHNOBLAST, :SOLARBEAM, :PHOTONGEYSER, :PRISMATICLASER, :NIGHTSLASH,
+		        :NIGHTDAZE, :MIRRORBEAM],
+		2.0 => [:DRACOMETEOR, :METEORMASH, :COMETPUNCH, :SPACIALREND, :SWIFT,
+		        :HYPERSPACEHOLETARGET, :HYPERSPACEFURY, :MOONGEISTBEAM, :SUNSTEELSTRIKE,
+		        :METEORASSAULT, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM,
+		        :LIGHTTHATBURNSTHESKY, :BLACKHOLEECLIPSE],
+		4.0 => [:DOOMDESIRE],
+	},
+	:accuracyMods => {},
+	:moveMessages => {
+		"The starlight powered up the attack!" => [:AURORABEAM, :SIGNALBEAM, :FLASHCANNON, :LUSTERPURGE,
+		        :DAZZLINGGLEAM, :MIRRORSHOT, :MOONBLAST, :TECHNOBLAST, :SOLARBEAM, :PHOTONGEYSER,
+		        :PRISMATICLASER, :NIGHTSLASH, :NIGHTDAZE, :MIRRORBEAM],
+		"The cosmos amplified the attack!" => [:DRACOMETEOR, :METEORMASH, :COMETPUNCH, :SPACIALREND,
+		        :SWIFT, :HYPERSPACEHOLETARGET, :HYPERSPACEFURY, :MOONGEISTBEAM, :SUNSTEELSTRIKE,
+		        :METEORASSAULT, :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM,
+		        :LIGHTTHATBURNSTHESKY, :BLACKHOLEECLIPSE],
+		"Doom Desire ignited in starfire!" => [:DOOMDESIRE],
+	},
+	:typeMods => {},
+	:typeAddOns => {
+		# Dark-type attacks deal additional Fairy damage; Solar Beam/Blade also
+		# (Dark-type moves are handled via typeBoosts; individual moves listed for add-on)
+		:FAIRY => [:SOLARBEAM, :SOLARBLADE],
+	},
+	:typeBoosts => {
+		1.5 => [:PSYCHIC, :DARK],
+		1.3 => [:FAIRY],
+	},
+	:typeMessages => {
+		"The starlight charged the Psychic attack!" => [:PSYCHIC],
+		"The darkness of the cosmos powered the attack!" => [:DARK],
+		"The starlight shimmered with fairy energy!" => [:FAIRY],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:moveEffects => {},
+	:moveStatStageMods => {
+		:COSMICPOWER => { stages: 2 },
+		:FLASH       => { stages: 2 },
+	},
+	:noCharging => [:METEORASSAULT, :METEORBEAM, :GEOMANCY, :SOLARBEAM, :SOLARBLADE],
+	:noChargingMessages => {
+		"The starlight let it attack instantly!" => [:METEORASSAULT, :METEORBEAM, :GEOMANCY, :SOLARBEAM, :SOLARBLADE],
+	},
+	:changeCondition => {},
+	:fieldChange => {
+		:INDOOR => [:LIGHTTHATBURNSTHESKY],
+	},
+	:dontChangeBackup => [],
+	:changeMessage => {
+		"Light That Burns the Sky consumed the starlight!" => [:LIGHTTHATBURNSTHESKY],
+	},
+	:statusMods => [:COSMICPOWER, :FLASH, :WISH, :MOONLIGHT, :LUNARBLESSING, :AURORAVEIL,
+		            :HEALINGWISH, :LUNARDANCE],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => :Wish,
+		:duration => 2,
+		:message => "The stardust granted {1} a wish!",
+		:animation => :WISH,
+		:stats => {
+			:SPECIAL_ATTACK => 1,
+		},
+	},
+	:overlay => {
+		:damageMods => {},
+		:typeMods => {},
+		:moveMessages => {},
+		:typeBoosts => {},
+		:typeMessages => {},
+		:typeCondition => {},
+		:statusMods => [],
+	},
+},
+
+
+:NEWWORLD => {
+	:name => "New World",
+	:fieldMessage => [
+		"From darkness, from stardust, from memories of eons passed and visions yet to come..."
+	],
+	:graphic => ["NewWorld"],
+	:secretPower => "DRACOMETEOR",  # 13 = Flinch (closest to "lower all stats" — hardcoded separately)
+	:naturePower => :SPACIALREND,
+	:mimicry => :NORMAL,  # random type — hardcoded in 010
+	:damageMods => {
+		1.5 => [:MIRRORSHOT, :AURORABEAM, :SIGNALBEAM, :DAZZLINGGLEAM, :COREENFORCER, :MIRRORBEAM,
+		        :FLASHCANNON, :PSYSTRIKE, :AEROBLAST, :SACREDFIRE, :MISTBALL,
+		        :LUSTERPURGE, :ORIGINPULSE, :PRECIPICEBLADES, :DRAGONASCENT, :PHOTONGEYSER,
+		        :PSYCHOBOOST, :ROAROFTIME, :MAGMASTORM, :CRUSHGRIP, :MINDBLOWN,
+		        :SHADOWFORCE, :SEEDFLARE, :JUDGMENT, :SEARINGSHOT, :PLASMAFISTS,
+		        :VCREATE, :SACREDSWORD, :SECRETSWORD, :FUSIONBOLT,
+		        :FUSIONFLARE, :BOLTSTRIKE, :BLUEFLARE, :GLACIATE,
+		        :ICEBURN, :FREEZESHOCK, :RELICSONG, :TECHNOBLAST,
+		        :OBLIVIONWING, :LANDSWRATH, :THOUSANDARROWS, :THOUSANDWAVES,
+		        :DIAMONDSTORM, :STEAMERUPTION, :ERUPTION, :POWERGEM,
+		        :EARTHPOWER, :FLEURCANNON, :PRISMATICLASER, :SUNSTEELSTRIKE,
+		        :SPECTRALTHIEF, :MOONGEISTBEAM, :MULTIATTACK, :CONTINENTALCRUSH,
+		        :GENESISSUPERNOVA, :SOULEATINGSEVENSTARSTRIKE,
+		        :SEARINGSUNRAZESMASH, :MENACINGMOONRAZEMAELSTROM],
+		2.0 => [:VACUUMWAVE, :DRACOMETEOR, :METEORMASH, :MOONBLAST,
+		        :COMETPUNCH, :SPACIALREND, :SWIFT, :FUTURESIGHT,
+		        :ANCIENTPOWER, :HYPERSPACEHOLETARGET, :HYPERSPACEFURY,
+		        :LIGHTTHATBURNSTHESKY, :BLACKHOLEECLIPSE],
+		0.25 => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE],
+		4.0 => [:DOOMDESIRE],
+	},
+	:accuracyMods => {
+		100 => [:DARKVOID],
+	},
+	:moveMessages => {
+		"The cosmos amplified the attack!" => [:MIRRORSHOT, :AURORABEAM, :SIGNALBEAM, :DAZZLINGGLEAM,
+		        :COREENFORCER, :MIRRORBEAM, :FLASHCANNON, :PSYSTRIKE, :AEROBLAST, :SACREDFIRE,
+		        :MISTBALL, :LUSTERPURGE, :ORIGINPULSE, :PRECIPICEBLADES, :DRAGONASCENT, :PHOTONGEYSER,
+		        :PSYCHOBOOST, :ROAROFTIME, :MAGMASTORM, :CRUSHGRIP, :MINDBLOWN, :SHADOWFORCE,
+		        :SEEDFLARE, :JUDGMENT, :SEARINGSHOT, :PLASMAFISTS, :VCREATE, :SACREDSWORD,
+		        :SECRETSWORD, :FUSIONBOLT, :FUSIONFLARE, :BOLTSTRIKE, :BLUEFLARE, :GLACIATE,
+		        :ICEBURN, :FREEZESHOCK, :RELICSONG, :TECHNOBLAST, :OBLIVIONWING, :LANDSWRATH,
+		        :THOUSANDARROWS, :THOUSANDWAVES, :DIAMONDSTORM, :STEAMERUPTION, :ERUPTION,
+		        :POWERGEM, :EARTHPOWER, :FLEURCANNON, :PRISMATICLASER, :SUNSTEELSTRIKE,
+		        :SPECTRALTHIEF, :MOONGEISTBEAM, :MULTIATTACK, :CONTINENTALCRUSH,
+		        :GENESISSUPERNOVA, :SOULEATINGSEVENSTARSTRIKE, :SEARINGSUNRAZESMASH,
+		        :MENACINGMOONRAZEMAELSTROM],
+		"The cosmic tide doubled the attack!" => [:VACUUMWAVE, :DRACOMETEOR, :METEORMASH, :MOONBLAST,
+		        :COMETPUNCH, :SPACIALREND, :SWIFT, :FUTURESIGHT, :ANCIENTPOWER,
+		        :HYPERSPACEHOLETARGET, :HYPERSPACEFURY, :LIGHTTHATBURNSTHESKY, :BLACKHOLEECLIPSE],
+		"The ground-shaking move weakened in the void!" => [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE],
+		"Doom Desire ignited in cosmic starfire!" => [:DOOMDESIRE],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:typeBoosts => {
+		1.5 => [:DARK],
+	},
+	:typeMessages => {
+		"The darkness of space powered the attack!" => [:DARK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:moveEffects => {},
+	:moveStatStageMods => {
+		:COSMICPOWER => { stages: 2 },
+		:FLASH       => { stages: 2 },
+	},
+	:noCharging => [:METEORBEAM],
+	:noChargingMessages => {
+		"The cosmos let the beam fire instantly!" => [:METEORBEAM],
+	},
+	:changeCondition => {},
+	:fieldChange => {
+		:STARLIGHTARENA => [:GRAVITY, :GEOMANCY],
+	},
+	:dontChangeBackup => [],
+	:changeMessage => {
+		"The cosmos shifted to Starlight!" => [:GRAVITY, :GEOMANCY],
+	},
+	:statusMods => [:COSMICPOWER, :FLASH, :FISSURE, :MOONLIGHT, :LUNARBLESSING, :AURORAVEIL,
+		            :LUNARDANCE, :DARKVOID],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => "The cosmic seed powered up {1}!",
+		:animation => :COSMICPOWER,
+		:stats => {
+			:ATTACK          => 1,
+			:DEFENSE         => 1,
+			:SPECIAL_ATTACK  => 1,
+			:SPECIAL_DEFENSE => 1,
+			:SPEED           => 1,
+		},
+	},
+	:overlay => {
+		:damageMods => {},
+		:typeMods => {},
+		:moveMessages => {},
+		:typeBoosts => {},
+		:typeMessages => {},
+		:typeCondition => {},
+		:statusMods => [],
+	},
+},
+
 }
 }
