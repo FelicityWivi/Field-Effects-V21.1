@@ -281,7 +281,7 @@ module FieldTestSuite
             power_multiplier:        1.0,
           }
           type = move.pbCalcType(battler) rescue move.type
-          field.apply_field_effect(:calc_damage, battler, battler, 1, move, type, move.baseDamage, mults)
+          field.apply_field_effect(:calc_damage, battler, battler, 1, move, type, move.power, mults)
         end
 
         # Type change
@@ -399,7 +399,7 @@ module FieldTestSuite
             power_multiplier:        1.0,
           }
           type = move.pbCalcType(battler) rescue move.type
-          field.apply_field_effect(:calc_damage, battler, battler, 1, move, type, move.baseDamage, mults)
+          field.apply_field_effect(:calc_damage, battler, battler, 1, move, type, move.power, mults)
         end
       end
 
@@ -554,7 +554,7 @@ module FieldTestSuite
     when :calc_damage
       return unless battler && move
       type = move.type
-      field.apply_field_effect(:calc_damage, battler, battler, 1, move, type, move.baseDamage, mults)
+      field.apply_field_effect(:calc_damage, battler, battler, 1, move, type, move.power, mults)
 
     when :pbCanInflictStatus?, :status_immunity
       return unless battler

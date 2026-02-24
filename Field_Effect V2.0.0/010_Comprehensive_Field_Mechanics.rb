@@ -599,7 +599,7 @@ class Battle::Battler
     end
     
     # Call original
-    return field_blocked_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
+    return field_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
   end
 end
 
@@ -1772,13 +1772,13 @@ class Battle::Move
     typeMod = bewitched_pbCalcTypeMod(moveType, user, target)
     return typeMod unless @battle.has_field? && BEWITCHED_WOODS_IDS.include?(@battle.current_field.id)
     # Fairy SE vs Steel
-    return Effectiveness::SUPER_EFFECTIVE_ONE if moveType == :FAIRY && target.pbHasType?(:STEEL)
+    return Effectiveness::SUPER_EFFECTIVE if moveType == :FAIRY && target.pbHasType?(:STEEL)
     # Poison neutral vs Grass
-    return Effectiveness::NORMAL_EFFECTIVE_ONE if moveType == :POISON && target.pbHasType?(:GRASS)
+    return Effectiveness::NORMAL_EFFECTIVE if moveType == :POISON && target.pbHasType?(:GRASS)
     # Dark neutral vs Fairy
-    return Effectiveness::NORMAL_EFFECTIVE_ONE if moveType == :DARK && target.pbHasType?(:FAIRY)
+    return Effectiveness::NORMAL_EFFECTIVE if moveType == :DARK && target.pbHasType?(:FAIRY)
     # Fairy neutral vs Dark
-    return Effectiveness::NORMAL_EFFECTIVE_ONE if moveType == :FAIRY && target.pbHasType?(:DARK)
+    return Effectiveness::NORMAL_EFFECTIVE if moveType == :FAIRY && target.pbHasType?(:DARK)
     return typeMod
   end
 end
@@ -2888,7 +2888,7 @@ class Battle::Move
     return typeMod unless moveType == :NORMAL &&
                           @battle.has_field? &&
                           BLESSED_FIELD_IDS.include?(@battle.current_field.id)
-    return Effectiveness::SUPER_EFFECTIVE_ONE if target.pbHasType?(:GHOST) || target.pbHasType?(:DARK)
+    return Effectiveness::SUPER_EFFECTIVE if target.pbHasType?(:GHOST) || target.pbHasType?(:DARK)
     return typeMod
   end
 end
@@ -2985,7 +2985,7 @@ class Battle::Move::LowerTargetAtkSpAtk1
        defType == :GHOST &&
        @battle.has_field? &&
        BLESSED_FIELD_IDS.include?(@battle.current_field.id)
-      return Effectiveness::SUPER_EFFECTIVE_ONE
+      return Effectiveness::SUPER_EFFECTIVE
     end
     
     return ret
@@ -3062,7 +3062,7 @@ class Battle::Move
        @battle.has_field? &&
        HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
       # Override the immunity to neutral
-      return Effectiveness::NORMAL_EFFECTIVE_ONE
+      return Effectiveness::NORMAL_EFFECTIVE
     end
     
     return typeMod
@@ -3392,7 +3392,7 @@ class Battle::Move::LowerTargetAtkSpAtk1
        defType == :GHOST &&
        @battle.has_field? &&
        HAUNTED_FIELD_IDS.include?(@battle.current_field.id)
-      return Effectiveness::SUPER_EFFECTIVE_ONE
+      return Effectiveness::SUPER_EFFECTIVE
     end
     
     return ret
@@ -5955,7 +5955,7 @@ class Battle::Move
        defType == :FLYING &&
        @battle.has_field? &&
        SKY_FIELD_IDS.include?(@battle.current_field.id)
-      return Effectiveness::SUPER_EFFECTIVE_ONE
+      return Effectiveness::SUPER_EFFECTIVE
     end
 
     ret
@@ -5989,7 +5989,7 @@ class Battle::Move::FightingAndFlyingType
         # Check if defType would normally resist or be immune to Flying
         base = Effectiveness.calculate(:FLYING, defType)
         if Effectiveness.not_very_effective?(base) || Effectiveness.ineffective?(base)
-          return Effectiveness::NORMAL_EFFECTIVE_ONE
+          return Effectiveness::NORMAL_EFFECTIVE
         end
       end
     end
@@ -6035,7 +6035,7 @@ class Battle::Move
        @battle.has_field? &&
        INFERNAL_FIELD_IDS.include?(@battle.current_field.id)
       # Ghost is normally immune to Normal/Fighting; Fire hits neutral — override to SE
-      return Effectiveness::SUPER_EFFECTIVE_ONE
+      return Effectiveness::SUPER_EFFECTIVE
     end
 
     ret
@@ -6207,7 +6207,7 @@ class Battle::Move
        defType == :DRAGON &&
        @battle.has_field? &&
        FAIRY_TALE_IDS.include?(@battle.current_field.id)
-      return Effectiveness::SUPER_EFFECTIVE_ONE
+      return Effectiveness::SUPER_EFFECTIVE
     end
 
     ret
@@ -6584,11 +6584,11 @@ class Battle::Move
 
     case ret
     when 0                                    # Immune → Super Effective
-      Effectiveness::SUPER_EFFECTIVE_ONE
-    when Effectiveness::NOT_VERY_EFFECTIVE_ONE # ×½ → ×2
-      Effectiveness::SUPER_EFFECTIVE_ONE
-    when Effectiveness::SUPER_EFFECTIVE_ONE   # ×2 → ×½
-      Effectiveness::NOT_VERY_EFFECTIVE_ONE
+      Effectiveness::SUPER_EFFECTIVE
+    when Effectiveness::NOT_VERY_EFFECTIVE # ×½ → ×2
+      Effectiveness::SUPER_EFFECTIVE
+    when Effectiveness::SUPER_EFFECTIVE   # ×2 → ×½
+      Effectiveness::NOT_VERY_EFFECTIVE
     else
       ret  # ×1 unchanged
     end

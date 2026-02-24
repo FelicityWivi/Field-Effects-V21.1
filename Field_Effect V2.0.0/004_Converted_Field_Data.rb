@@ -340,7 +340,7 @@ class Battle::Battler
       return false if pbHasType?(:WATER)
       return false if hasActiveAbility?([:SWIFTSWIM, :MAGICGUARD])
       effectiveness = Effectiveness.calculate(:WATER, *pbTypes(true))
-      return false if effectiveness <= Effectiveness::NOT_VERY_EFFECTIVE_ONE
+      return false if effectiveness <= Effectiveness::NOT_VERY_EFFECTIVE_MULTIPLIER
       return true
       
     when :murkwatersurface
