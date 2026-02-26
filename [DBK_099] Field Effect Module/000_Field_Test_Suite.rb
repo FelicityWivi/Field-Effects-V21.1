@@ -203,6 +203,8 @@ module FieldTestSuite
     begin; Graphics.update; rescue SystemExit, Interrupt => e; raise e; rescue Exception; end  # Keep game responsive
     _log "-" * 72
     _log "FIELD #{idx}/#{total}: :#{field_id}"
+    # Print directly so current field is always visible even amid $DEBUG spam
+    Console.echo_li("[FieldTest] >>> Testing field #{idx}/#{total}: :#{field_id} <<<") rescue nil
 
     # 1. Instantiation ────────────────────────────────────────────────────────
     field = nil
@@ -633,18 +635,26 @@ module FieldTestSuite
       -> { Pokemon.new(species, level, owner) },
       -> { Pokemon.new(species, level) },
     ].each do |attempt|
-      begin; pkmn = attempt.call; break; rescue ArgumentError; end
+      begin; pkmn = attempt.call; break; rescue Exception; end
     end
     return nil unless pkmn
-    # Give it a full moveset using its natural learnset
+    # Populate moves by writing directly into the moves array.
+    # We deliberately avoid pbLearnMove because its signature varies across
+    # PE forks (some require 2-4 args) and RGSS logs every ArgumentError to
+    # the console the instant it is raised, even when rescued.
     GameData::Species.get(species).moves.each do |move_data|
-      next unless GameData::Move.exists?(move_data[1])
+      move_id = move_data[1]
+      next unless GameData::Move.exists?(move_id)
       break if pkmn.numMoves >= Pokemon::MAX_MOVES
-      pkmn.pbLearnMove(move_data[1])
+      begin
+        pkmn.moves.push(Pokemon::Move.new(move_id))
+      rescue Exception; end
     end
     # Guarantee at least one move
     if pkmn.numMoves == 0
-      pkmn.pbLearnMove(:TACKLE) if GameData::Move.exists?(:TACKLE)
+      begin
+        pkmn.moves.push(Pokemon::Move.new(:TACKLE)) if GameData::Move.exists?(:TACKLE)
+      rescue Exception; end
     end
     return pkmn
   rescue Exception => e
@@ -765,12 +775,10 @@ end
 # Debug menu convenience wrapper
 #-------------------------------------------------------------------------------
 def pbFieldTestSuite
-  # Show a non-blocking message so the screen doesn't look frozen
   Graphics.update
-  pbMessage(_INTL("Running Field Test Suite…\nResults will be saved to field_test_results.txt in your game folder."))
+  pbMessage(_INTL("Running Field Test Suite\nResults will be saved to field_test_results.txt in your game folder."))
   Graphics.update
   FieldTestSuite.run
-  # Notify the player where to find the report
   output = FieldTestSuite::CONFIG[:output_path]
   fails  = FieldTestSuite.instance_variable_get(:@results)&.dig(:fail) || 0
   if fails == 0
@@ -782,8 +790,6 @@ end
 
 #-------------------------------------------------------------------------------
 # PE v21.1 Debug Menu integration
-# Adds "Field Test Suite" to the in-game debug menu automatically.
-# No manual edits to Debug.rb are required.
 #-------------------------------------------------------------------------------
 if defined?(MenuHandlers)
   MenuHandlers.add(:debug_menu, :field_test_suite, {

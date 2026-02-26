@@ -142,15 +142,17 @@ class Battle::Field
 
     # End of round healing effect
     @effects[:EOR_field_battler] = proc { |battler|
+      # Early exits before any logging — avoids console spam on non-healing fields
+      next unless @eor_heal_fraction && @eor_heal_fraction > 0
+      next if battler.fainted?
+
+      # Only log once we know this field is actually configured to heal
       if $DEBUG
         Console.echo_li("  EOR_field_battler called for #{battler.pbThis}")
         Console.echo_li("  Heal fraction: #{@eor_heal_fraction}")
         Console.echo_li("  Heal condition: #{@eor_heal_condition}")
       end
-      
-      next unless @eor_heal_fraction && @eor_heal_fraction > 0
-      next if battler.fainted?
-      
+
       # Check condition if one exists
       if @eor_heal_condition
         begin
@@ -160,26 +162,20 @@ class Battle::Field
           condition_str.gsub!('isAirborne?', 'airborne?')
           condition_str.gsub!('!battler.airborne?', 'battler.grounded?')
           result = eval(condition_str)
-          if $DEBUG
-            Console.echo_li("  Condition result: #{result}")
-          end
+          Console.echo_li("  Condition result: #{result}") if $DEBUG
           next unless result
         rescue => e
-          if $DEBUG
-            Console.echo_li("  Condition eval error: #{e.message}")
-          end
+          Console.echo_li("  Condition eval error: #{e.message}") if $DEBUG
           # If condition fails, don't heal
           next
         end
       end
-      
+
       # Heal the battler
       if battler.canHeal?
         heal_amount = (battler.totalhp / @eor_heal_fraction.to_f).round
-        if $DEBUG
-          Console.echo_li("  Healing #{battler.pbThis} for #{heal_amount} HP (#{battler.hp}/#{battler.totalhp})")
-        end
         if heal_amount > 0
+          Console.echo_li("  Healing #{battler.pbThis} for #{heal_amount} HP (#{battler.hp}/#{battler.totalhp})") if $DEBUG
           battler.pbRecoverHP(heal_amount)
           if @eor_heal_message && !@eor_heal_message.empty?
             @battle.pbDisplay(_INTL(@eor_heal_message, battler.pbThis))
@@ -188,9 +184,7 @@ class Battle::Field
           end
         end
       else
-        if $DEBUG
-          Console.echo_li("  Cannot heal #{battler.pbThis} - canHeal? returned false")
-        end
+        Console.echo_li("  Cannot heal #{battler.pbThis} - canHeal? returned false") if $DEBUG
       end
     }
   end
