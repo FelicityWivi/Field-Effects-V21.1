@@ -72,7 +72,7 @@ end
 # 2. MOVE FAILURES
 #===============================================================================
 class Battle::Move
-  # avoid alias so method may not exist yet
+  alias field_base_pbFailsAgainstTarget? pbFailsAgainstTarget?
   def pbFailsAgainstTarget?(user, target, show_message)
     # Check if field causes this move to fail
     if @battle.has_field? && @battle.current_field.failed_moves
@@ -81,7 +81,7 @@ class Battle::Move
         return true
       end
     end
-    return super
+    return field_base_pbFailsAgainstTarget?(user, target, show_message)
   end
 end
 
@@ -212,11 +212,7 @@ end
 # Show custom message right after "uses" message
 class Battle::Move::TwoTurnMove
   def pbDisplayUseMessage(user)
-    begin
-      super
-    rescue NoMethodError
-      # some subclasses may not implement this yet
-    end
+    super
     # Don't show custom message here - let it show after charging animation
   end
   
@@ -521,14 +517,9 @@ end
 
 # Move Integration
 class Battle::Move
+  alias cave_pbEffectAfterAllHits pbEffectAfterAllHits
   def pbEffectAfterAllHits(user, target)
-    if method(:pbEffectAfterAllHits).super_method
-      begin
-        super
-      rescue NoMethodError
-        # missing parent method
-      end
-    end
+    cave_pbEffectAfterAllHits(user, target)
     earthquake_moves = [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE, 
                        :TECTONICRAGE, :CONTINENTALCRUSH]
     if earthquake_moves.include?(@id)
@@ -538,15 +529,9 @@ class Battle::Move
 end
 
 class Battle::Move
+  alias cave_pbDisplayUseMessage pbDisplayUseMessage
   def pbDisplayUseMessage(user)
-    # only call super if a parent defines the method
-    if method(:pbDisplayUseMessage).super_method
-      begin
-        super
-      rescue NoMethodError
-        # parent may still be missing in some situations
-      end
-    end
+    cave_pbDisplayUseMessage(user)
     earthquake_moves = [:EARTHQUAKE, :BULLDOZE, :MAGNITUDE, :FISSURE,
                        :TECTONICRAGE, :CONTINENTALCRUSH]
     if earthquake_moves.include?(@id) && @battle.is_cave?
@@ -1194,12 +1179,13 @@ BACK_ALLEY_IDS = %i[backalley].freeze
 
 # Passive healing reduction (33%)
 class Battle::Battler
+  alias back_alley_pbRecoverHP pbRecoverHP
   def pbRecoverHP(amt, anim = true)
     # Reduce healing by 33% on Back Alley
     if @battle.has_field? && BACK_ALLEY_IDS.include?(@battle.current_field.id)
       amt = (amt * 0.67).round
     end
-    return super
+    back_alley_pbRecoverHP(amt, anim)
   end
 end
 
@@ -1387,13 +1373,9 @@ end
 
 # Speed reduction (0.75x) for grounded non-Water types
 class Battle::Battler
-  # Speed reduction (0.75x) for grounded non-Water types in murk water
+  alias murkwater_pbSpeed pbSpeed
   def pbSpeed
-    begin
-      speed = super
-    rescue NoMethodError
-      speed = 0
-    end
+    speed = murkwater_pbSpeed
     return speed if !@battle.has_field? || !MURKWATER_IDS.include?(@battle.current_field.id)
     return speed if pbHasType?(:WATER) || !grounded?
     return speed if hasActiveAbility?([:SWIFTSWIM, :SURGESURFER])
@@ -1675,14 +1657,9 @@ end
 
 # Telepathy: Speed 2x
 class Battle::Battler
-  # double speed with Telepathy under Psychic Terrain
+  alias psychic_terrain_pbSpeed pbSpeed
   def pbSpeed
-    # attempt to call whatever implementation exists; fall back to 0 if none
-    begin
-      speed = super
-    rescue NoMethodError
-      speed = 0
-    end
+    speed = psychic_terrain_pbSpeed
     if @battle.has_field? && PSYCHIC_TERRAIN_IDS.include?(@battle.current_field.id)
       if hasActiveAbility?(:TELEPATHY)
         speed = (speed * 2.0).round
@@ -1694,6 +1671,7 @@ end
 
 # Magician: Status moves have 50% accuracy when targeting user
 class Battle::Move
+  alias psychic_pbAccuracyCheck pbAccuracyCheck
   def pbAccuracyCheck(user, target)
     if @battle.has_field? && PSYCHIC_TERRAIN_IDS.include?(@battle.current_field.id)
       if target.hasActiveAbility?(:MAGICIAN) && statusMove?
@@ -1701,15 +1679,7 @@ class Battle::Move
         return rand(100) < 50
       end
     end
-    # call super only if it actually exists, otherwise default to true
-    if method(:pbAccuracyCheck).super_method
-      begin
-        return super
-      rescue NoMethodError
-        return true
-      end
-    end
-    return true
+    psychic_pbAccuracyCheck(user, target)
   end
 end
 
@@ -1724,8 +1694,9 @@ BEWITCHED_WOODS_IDS = %i[bewitched].freeze
 
 # Sleep damage (1/16 HP), Grass healing (1/16 HP) EOR
 class Battle
+  alias bewitched_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    bewitched_pbEndOfRoundPhase
     return unless has_field? && BEWITCHED_WOODS_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -1744,22 +1715,19 @@ class Battle
   end
 end
 
-# Prankster works on Dark-types
+# Prankster works on Dark-types in Bewitched Woods
 class Battle::Move
+  alias bewitched_pbFailsAgainstTarget? pbFailsAgainstTarget?
   def pbFailsAgainstTarget?(user, target, show_message)
     if @battle.has_field? && BEWITCHED_WOODS_IDS.include?(@battle.current_field.id)
       # Don't block Prankster on Dark-types in Bewitched Woods
       if @priority > 0 && user.hasActiveAbility?(:PRANKSTER)
-        # Allow it to work - skip the Dark-type immunity check
-        if method(:pbFailsAgainstTarget?).super_method
-          return super unless target.pbHasType?(:DARK)
-        end
+        # Allow it to work - skip the Dark-type immunity check by returning false
+        # (false = does not fail) if target is Dark-type
+        return false if target.pbHasType?(:DARK)
       end
     end
-    if method(:pbFailsAgainstTarget?).super_method
-      return super
-    end
-    return false
+    bewitched_pbFailsAgainstTarget?(user, target, show_message)
   end
 end
 
@@ -1835,8 +1803,9 @@ DESERT_FIELD_IDS = %i[desert].freeze
 
 # Ground-types: 1.5x SpDef
 class Battle::Move
+  alias desert_spdef_pbCalcDamageMultipliers pbCalcDamageMultipliers
   def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
-    super(user, target, numTargets, type, baseDmg, multipliers)
+    desert_spdef_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
     return unless @battle.has_field? && DESERT_FIELD_IDS.include?(@battle.current_field.id)
     return unless target.pbHasType?(:GROUND)
     return unless specialMove?(type)
@@ -1848,8 +1817,9 @@ end
 # Sunny Day: Grass/Water take 1/8 damage EOR (unless Solar Power/Chlorophyll)
 # Grass/Water healed by Water moves in Sunny Day
 class Battle
+  alias desert_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    desert_pbEndOfRoundPhase
     return unless has_field? && DESERT_FIELD_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -1880,8 +1850,9 @@ CORROSIVE_FIELD_IDS = %i[corrosive].freeze
 # Sleeping Pokemon take 1/16 HP damage
 # Ingrain/Grass Pelt damage users
 class Battle
+  alias corrosive_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    corrosive_pbEndOfRoundPhase
     return unless has_field? && CORROSIVE_FIELD_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -1944,23 +1915,13 @@ class Battle::Move::HealAllyOrUserByQuarterOfTotalHP
 end
 
 # Toxic Spikes can't be absorbed on Corrosive Field
+# (The actual absorption prevention is a no-op here since base PE handles
+#  absorption in pbSuccessCheckAgainstTarget before we can intercept it.
+#  This hook is kept for potential future use.)
 class Battle::Battler
+  alias corrosive_pbEffectsOnMakingHit pbEffectsOnMakingHit
   def pbEffectsOnMakingHit(move, user, target)
-    # call super if available
-    if method(:pbEffectsOnMakingHit).super_method
-      begin
-        super
-      rescue NoMethodError
-        # gracefully ignore
-      end
-    end
-    # Prevent Toxic Spikes absorption on Corrosive Field
-    if @battle.has_field? && CORROSIVE_FIELD_IDS.include?(@battle.current_field.id)
-      if grounded? && pbHasType?(:POISON)
-        # Don't absorb Toxic Spikes - do nothing (absorption happens in base game)
-        # We just prevent the removal by not allowing the check
-      end
-    end
+    corrosive_pbEffectsOnMakingHit(move, user, target)
   end
 end
 
@@ -1995,8 +1956,9 @@ CORROSIVE_MIST_IDS = %i[corrosivemist].freeze
 # Aqua Ring damages users
 # Dry Skin damages users (heals Poison types)
 class Battle
+  alias corrosive_mist_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    corrosive_mist_pbEndOfRoundPhase
     return unless has_field? && CORROSIVE_MIST_IDS.include?(current_field.id)
     # Check for Neutralizing Gas
     neutralizing_gas_active = allBattlers.any? { |b| b.hasActiveAbility?(:NEUTRALIZINGGAS) }
@@ -2049,8 +2011,9 @@ CORRUPTED_CAVE_IDS = %i[corrupted].freeze
 # EOR damage for Grass Pelt/Leaf Guard/Flower Veil
 # EOR healing for Poison Heal
 class Battle
+  alias corrupted_cave_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    corrupted_cave_pbEndOfRoundPhase
     return unless has_field? && CORRUPTED_CAVE_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -2124,6 +2087,7 @@ Battle::AbilityEffects::EndOfRoundHealing.add(:DRYSKIN_CORRUPTED,
 
 # Poison Touch/Point - Doubled activation rate
 class Battle::Move
+  alias corrupted_cave_pbAdditionalEffect pbAdditionalEffect
   def pbAdditionalEffect(user, target)
     if user.battle.has_field? && CORRUPTED_CAVE_IDS.include?(user.battle.current_field.id)
       if user.hasActiveAbility?([:POISONTOUCH, :POISONPOINT]) && contactMove?
@@ -2133,7 +2097,7 @@ class Battle::Move
         end
       end
     end
-    return super
+    return corrupted_cave_pbAdditionalEffect(user, target)
   end
 end
 
@@ -2230,12 +2194,9 @@ UNDERWATER_IDS = %i[underwater].freeze
 
 # Non-Water types: Speed halved
 class Battle::Battler
+  alias underwater_pbSpeed pbSpeed
   def pbSpeed
-    begin
-      speed = super
-    rescue NoMethodError
-      speed = 0
-    end
+    speed = underwater_pbSpeed
     return speed if !@battle.has_field? || !UNDERWATER_IDS.include?(@battle.current_field.id)
     return speed if pbHasType?(:WATER)
     return (speed * 0.5).round
@@ -2244,8 +2205,9 @@ end
 
 # Physical non-Water moves by non-Water types: 0.5x damage
 class Battle::Move
+  alias underwater_pbCalcDamageMultipliers pbCalcDamageMultipliers
   def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
-    super(user, target, numTargets, type, baseDmg, multipliers)
+    underwater_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
     return unless @battle.has_field? && UNDERWATER_IDS.include?(@battle.current_field.id)
     return if user.pbHasType?(:WATER) || type == :WATER
     return unless physicalMove?(type)
@@ -2255,8 +2217,9 @@ end
 
 # EOR damage to non-Water weak to Water
 class Battle
+  alias underwater_eor_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    underwater_eor_pbEndOfRoundPhase
     return unless has_field? && UNDERWATER_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted? || b.pbHasType?(:WATER)
@@ -2285,17 +2248,9 @@ WATER_SURFACE_IDS = %i[watersurface].freeze
 # Passive Speed reduction (0.75x) for grounded non-Water types
 # Applied via Battle::Battler#pbSpeed hook
 class Battle::Battler
+  alias water_surface_pbSpeed pbSpeed
   def pbSpeed
-    # try to use parent speed if it exists
-    if method(:pbSpeed).super_method
-      begin
-        speed = super
-      rescue NoMethodError
-        speed = 0
-      end
-    else
-      speed = 0
-    end
+    speed = water_surface_pbSpeed
     return speed if !@battle.has_field? || !WATER_SURFACE_IDS.include?(@battle.current_field.id)
     return speed if pbHasType?(:WATER) || !grounded?
     return speed if hasActiveAbility?([:SWIFTSWIM, :SURGESURFER])
@@ -2368,8 +2323,9 @@ Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE,
 
 # Whirlpool - 1/6 damage, Aqua Ring - 1/8 healing, Tar Shot wash
 class Battle
+  alias water_surface_eor_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    super
+    water_surface_eor_pbEndOfRoundPhase
     return unless has_field? && WATER_SURFACE_IDS.include?(current_field.id)
     allBattlers.each do |battler|
       next if battler.fainted?
@@ -2725,8 +2681,9 @@ Battle::AbilityEffects::DamageCalcFromUser.add(:LONGREACH,
 
 # Ice Scales - Ignores Ice-type weaknesses
 class Battle::Move
+  alias snowy_icescales_pbCalcDamageMultipliers pbCalcDamageMultipliers
   def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
-    super(user, target, numTargets, type, baseDmg, multipliers)
+    snowy_icescales_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
     # Ice Scales ignores Ice weaknesses on Snowy Mountain
     return unless @battle.has_field? && SNOWY_MOUNTAIN_IDS.include?(@battle.current_field.id)
     return unless target.hasActiveAbility?(:ICESCALES)
@@ -2781,20 +2738,13 @@ Battle::AbilityEffects::DamageCalcFromUser.add(:LONGREACH,
 
 # Special Flying moves get additional 1.5x boost during Strong Winds
 class Battle::Move
+  alias mountain_flying_pbCalcDamageMultipliers pbCalcDamageMultipliers
   def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
-    # only attempt super if defined
-    if method(:pbCalcDamageMultipliers).super_method
-      begin
-        super(user, target, numTargets, type, baseDmg, multipliers)
-      rescue NoMethodError
-        # ignore
-      end
-    end
+    mountain_flying_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
     # On Mountain Field during Strong Winds, special Flying moves get extra boost
     return unless @battle.has_field? && MOUNTAIN_FIELD_IDS.include?(@battle.current_field.id)
     return unless @battle.field.weather == :StrongWinds
     return unless type == :FLYING && specialMove?(type)
-    # Additional 1.5x boost
     multipliers[:base_damage_multiplier] *= 1.5
   end
 end
@@ -2804,14 +2754,9 @@ end
 MOUNTAIN_WIND_MOVES = [:OMINOUSWIND, :RAZORWIND, :ICYWIND, :SILVERWIND, :FAIRYWIND, :TWISTER, :GUST].freeze
 
 class Battle::Move
+  alias mountain_wind_pbCalcDamageMultipliers pbCalcDamageMultipliers
   def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
-    if method(:pbCalcDamageMultipliers).super_method
-      begin
-        super(user, target, numTargets, type, baseDmg, multipliers)
-      rescue NoMethodError
-        # ignore
-      end
-    end
+    mountain_wind_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
     # Wind moves get 1.5x boost during Strong Winds on Mountain Field
     return unless @battle.has_field? && MOUNTAIN_FIELD_IDS.include?(@battle.current_field.id)
     return unless @battle.field.weather == :StrongWinds
@@ -2822,15 +2767,9 @@ end
 
 # Hail weather transformation to Snowy Mountain after 3 consecutive turns
 class Battle
+  alias mountain_pbEndOfRoundPhase pbEndOfRoundPhase
   def pbEndOfRoundPhase
-    # call parent phase if it exists
-    if method(:pbEndOfRoundPhase).super_method
-      begin
-        super
-      rescue NoMethodError
-        # nothing to do
-      end
-    end
+    mountain_pbEndOfRoundPhase
     # Check for Hail on Mountain Field
     if has_field? && MOUNTAIN_FIELD_IDS.include?(current_field.id)
       if [:Hail, :Snow].include?(field.weather)
@@ -3679,14 +3618,17 @@ class Battle::Battler
   
   alias forest_pbLowerStatStage pbLowerStatStage if method_defined?(:pbLowerStatStage)
   
-  def pbLowerStatStage(stat, increment, user, show_messages = true, ignore_contrary = false)
+  def pbLowerStatStage(stat, increment, user, showAnim = true, ignoreContrary = false,
+                       mirrorArmorSplash = 0, ignoreMirrorArmor = false)
     # Boost Sticky Web effect if flagged
     if @forest_sticky_web_boost && stat == :SPEED
       increment += 1  # Make it -2 instead of -1
       @forest_sticky_web_boost = nil
     end
-    
-    respond_to?(:forest_pbLowerStatStage) ? forest_pbLowerStatStage(stat, increment, user, show_messages, ignore_contrary) : super
+
+    respond_to?(:forest_pbLowerStatStage) ?
+      forest_pbLowerStatStage(stat, increment, user, showAnim, ignoreContrary, mirrorArmorSplash, ignoreMirrorArmor) :
+      super
   end
 end
 
@@ -4210,7 +4152,7 @@ class Battle::Battler
   
   def pbRecoverHP(amt, anim = true)
     # Check if this is Wish healing on Misty Terrain
-    if @effects[PBEffects::Wish] > 0 &&
+    if (@battle.positions[@index].effects[PBEffects::Wish] || 0) > 0 &&
        @battle.has_field? && 
        MISTY_TERRAIN_IDS.include?(@battle.current_field.id)
       # Wish heals 50% normally, boost to 75%
@@ -6250,7 +6192,7 @@ class Battle::Battler
   alias fairytale_wish_pbRecoverHP pbRecoverHP if method_defined?(:pbRecoverHP)
 
   def pbRecoverHP(amt, anim = true)
-    if @effects[PBEffects::Wish] > 0 &&
+    if (@battle.positions[@index].effects[PBEffects::Wish] || 0) > 0 &&
        @battle.has_field? &&
        FAIRY_TALE_IDS.include?(@battle.current_field.id)
       amt = (@totalhp * 0.75).round
@@ -7345,7 +7287,7 @@ class Battle::Battler
           amt = (@totalhp / 2.0).round
         when :WISH
           # Wish fires at EOR — check for Wish effect counter instead
-          if @effects[PBEffects::Wish] > 0
+          if (@battle.positions[@index].effects[PBEffects::Wish] || 0) > 0
             amt = (@totalhp * 0.75).round
           end
         end
@@ -7706,7 +7648,7 @@ class Battle::Battler
         end
       end
       # Wish healing (applied at EOR) — check if Wish was active
-      if @effects[PBEffects::Wish] > 0
+      if (@battle.positions[@index].effects[PBEffects::Wish] || 0) > 0
         amt = (@totalhp * 0.75).round
       end
     end
@@ -7893,8 +7835,8 @@ class Battle
       item    = args[1]
       if item == :MAGICALSEED && battler && !battler.fainted?
         if PBEffects.const_defined?(:Wish)
-          battler.effects[PBEffects::Wish]      = 2
-          battler.effects[PBEffects::WishAmount] = (battler.totalhp / 2.0).round if PBEffects.const_defined?(:WishAmount)
+          @positions[battler.index].effects[PBEffects::Wish] = 2
+          @positions[battler.index].effects[PBEffects::WishAmount] = (battler.totalhp / 2.0).round if PBEffects.const_defined?(:WishAmount)
           pbDisplay(_INTL("{1} made a wish upon the stars!", battler.pbThis))
         end
       end
