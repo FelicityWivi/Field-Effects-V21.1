@@ -306,7 +306,7 @@ class Battle::Battler
     case @battle.current_field&.id
     when :volcanic, :superheated, :volcanictop, :infernal
       # Burning field passive damage
-      return false if hasType?(:FIRE) || @effects[PBEffects::AquaRing]
+      return false if pbHasType?(:FIRE) || @effects[PBEffects::AquaRing]
       return false if hasActiveAbility?([:FLAREBOOST, :MAGMAARMOR, :FLAMEBODY, :FLASHFIRE,
                                          :WATERVEIL, :MAGICGUARD, :HEATPROOF, :WATERBUBBLE])
       # Check if using Dig or Dive
@@ -318,7 +318,7 @@ class Battle::Battler
 
     when :underwater
       # Underwater field passive damage
-      return false if hasType?(:WATER)
+      return false if pbHasType?(:WATER)
       return false if hasActiveAbility?([:SWIFTSWIM, :MAGICGUARD])
       effectiveness = Effectiveness.calculate(:WATER, *pbTypes(true))
       return false if effectiveness <= Effectiveness::NOT_VERY_EFFECTIVE_ONE
@@ -326,7 +326,7 @@ class Battle::Battler
 
     when :murkwatersurface
       # Murky water surface passive damage (poison-like)
-      return false if hasType?(:STEEL) || hasType?(:POISON)
+      return false if pbHasType?(:STEEL) || pbHasType?(:POISON)
       return false if hasActiveAbility?([:POISONHEAL, :MAGICGUARD, :WONDERGUARD,
                                          :TOXICBOOST, :IMMUNITY, :PASTELVEIL, :SURGESURFER])
       return true
@@ -343,31 +343,31 @@ class Battle::Move
 
     case @battle.current_field&.id
     when :misty
-      defmult *= 1.5 if pbSpecialMove?(type) && target.hasType?(:FAIRY)
+      defmult *= 1.5 if pbSpecialMove?(type) && target.pbHasType?(:FAIRY)
     when :darkcrystalcavern
-      defmult *= 1.5 if target.hasType?(:DARK) || target.hasType?(:GHOST)
+      defmult *= 1.5 if target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
       defmult *= 1.33 if target.hasActiveAbility?(:PRISMARMOR)
     when :rainbow, :crystalcavern
       defmult *= 1.33 if target.hasActiveAbility?(:PRISMARMOR)
     when :dragonsden
-      defmult *= 1.3 if target.hasType?(:DRAGON)
+      defmult *= 1.3 if target.pbHasType?(:DRAGON)
     when :newworld
       defmult *= 0.9 if target.airborne?
     when :snowymountain, :icy
-      if pbPhysicalMove?(type) && target.hasType?(:ICE) && @battle.pbWeather == :Hail
+      if pbPhysicalMove?(type) && target.pbHasType?(:ICE) && @battle.pbWeather == :Hail
         defmult *= 1.5
       end
     when :desert
-      defmult *= 1.5 if pbSpecialMove?(type) && target.hasType?(:GROUND)
+      defmult *= 1.5 if pbSpecialMove?(type) && target.pbHasType?(:GROUND)
     when :dimensional
-      defmult *= 1.5 if target.hasType?(:GHOST)
+      defmult *= 1.5 if target.pbHasType?(:GHOST)
     when :frozendimension
-      defmult *= 1.2 if target.hasType?(:GHOST) || target.hasType?(:ICE)
-      defmult *= 0.8 if target.hasType?(:FIRE)
+      defmult *= 1.2 if target.pbHasType?(:GHOST) || target.pbHasType?(:ICE)
+      defmult *= 0.8 if target.pbHasType?(:FIRE)
     when :darkness2
-      defmult *= 1.1 if target.hasType?(:DARK) || target.hasType?(:GHOST)
+      defmult *= 1.1 if target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
     when :darkness3
-      defmult *= 1.2 if target.hasType?(:DARK) || target.hasType?(:GHOST)
+      defmult *= 1.2 if target.pbHasType?(:DARK) || target.pbHasType?(:GHOST)
     end
 
     return defmult

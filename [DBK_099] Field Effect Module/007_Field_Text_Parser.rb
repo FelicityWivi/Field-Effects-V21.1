@@ -409,6 +409,8 @@ class FieldTextParser
                 condition_str.gsub!('isAirborne?', 'airborne?')
                 condition_str.gsub!('!user.airborne?', 'user.grounded?')
                 condition_str.gsub!('!target.airborne?', 'target.grounded?')
+                condition_str.gsub!('pbIsSpecial?', 'pbSpecialMove?')
+                condition_str.gsub!('pbIsPhysical?', 'pbPhysicalMove?')
                 
                 # Evaluate condition in context
                 result = eval(condition_str)
@@ -761,6 +763,8 @@ class FieldTextParser
                 condition_str.gsub!('isAirborne?', 'airborne?')
                 condition_str.gsub!('!user.airborne?', 'user.grounded?')
                 condition_str.gsub!('!target.airborne?', 'target.grounded?')
+                condition_str.gsub!('pbIsSpecial?', 'pbSpecialMove?')
+                condition_str.gsub!('pbIsPhysical?', 'pbPhysicalMove?')
                 
                 result = eval(condition_str)
                 next result
