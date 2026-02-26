@@ -3,98 +3,88 @@
 # This file converts the old FIELDEFFECTS hash structure into the new
 # Battle::Field plugin format
 #===============================================================================
-
 #===============================================================================
 # Helper module for converting old field data format to new format
 #===============================================================================
 module FieldDataConverter
   # Convert old damage mod format to new multiplier format
   # Old: { 1.5 => [:MOVE1, :MOVE2], 2.0 => [:MOVE3] }
-  # New: Proc-based multipliers
+  # New: Proc-based multipliers stored as { [:power_multiplier, value, message] => proc }
   def self.convert_damage_mods(field_id, damage_mods, type_boosts, move_messages, type_messages, type_conditions)
     return {} if damage_mods.nil? && type_boosts.nil?
-    
+
     multipliers = {}
-    
+
     # Convert move-specific damage mods
     if damage_mods
       damage_mods.each do |mult, moves|
         moves.each do |move_id|
           message = move_messages&.find { |msg, mv_list| mv_list.include?(move_id) }&.first || ""
-          
-          multipliers[[mult, move_id]] = [
-            :power_multiplier,
-            mult,
-            message,
-            proc { |user, target, numTargets, move, type, power, mults|
-              next move.id == move_id
-            }
-          ]
+
+          # FIX: key is [:power_multiplier, value, message], value is a plain proc
+          multipliers[[:power_multiplier, mult, message]] = proc { |user, target, numTargets, move, type, power, mults|
+            next move.id == move_id
+          }
         end
       end
     end
-    
+
     # Convert type-specific boosts
     if type_boosts
       type_boosts.each do |mult, types|
         types.each do |type_sym|
-          message = type_messages&.find { |msg, type_list| type_list.include?(type_sym) }&.first || ""
-          condition = type_conditions&[type_sym]
-          
-          multipliers[[mult, type_sym]] = [
-            :power_multiplier,
-            mult,
-            message,
-            proc { |user, target, numTargets, move, type, power, mults|
-              next false unless type == type_sym
-              if condition
-                # Evaluate condition
-                attacker = user
-                opponent = target
-                begin
-                  result = eval(condition)
-                  next result
-                rescue
-                  next true
-                end
+          message   = type_messages&.find { |msg, type_list| type_list.include?(type_sym) }&.first || ""
+          condition = type_conditions&.[](type_sym)
+
+          # FIX: key is [:power_multiplier, value, message], value is a plain proc
+          multipliers[[:power_multiplier, mult, message]] = proc { |user, target, numTargets, move, type, power, mults|
+            next false unless type == type_sym
+            if condition
+              attacker = user
+              opponent = target
+              begin
+                result = eval(condition)
+                next result
+              rescue
+                next true
               end
-              next true
-            }
-          ]
+            end
+            next true
+          }
         end
       end
     end
-    
+
     multipliers
   end
-  
+
   # Convert seed data
   def self.convert_seed_data(seed_hash)
     return {} if seed_hash.nil? || seed_hash.empty?
     {
-      type: seed_hash[:seedtype],
-      effect: seed_hash[:effect],
-      duration: seed_hash[:duration],
-      message: seed_hash[:message],
+      type:      seed_hash[:seedtype],
+      effect:    seed_hash[:effect],
+      duration:  seed_hash[:duration],
+      message:   seed_hash[:message],
       animation: seed_hash[:animation],
-      stats: seed_hash[:stats] || {}
+      stats:     seed_hash[:stats] || {}
     }
   end
-  
+
   # Convert field change conditions
   def self.convert_field_changes(field_change_hash, change_condition_hash, change_message_hash)
     return {} if field_change_hash.nil? || field_change_hash.empty?
-    
+
     changes = {}
     field_change_hash.each do |new_field, moves|
       moves.each do |move_id|
         condition = change_condition_hash&.find { |cond, mv_list| mv_list.include?(move_id) }&.first
-        message = change_message_hash&.find { |msg, mv_list| mv_list.include?(move_id) }&.first
-        
+        message   = change_message_hash&.find  { |msg,  mv_list| mv_list.include?(move_id) }&.first
+
         changes[move_id] = {
           new_field: new_field,
           condition: condition,
-          message: message
+          message:   message
         }
       end
     end
@@ -107,83 +97,66 @@ end
 #===============================================================================
 # This would normally load from the FIELDEFFECTS constant
 # For now, we'll provide a template showing how to convert each field
-
 #===============================================================================
 # Example: Electric Terrain Field Conversion
 #===============================================================================
 Battle::Field.register(:electerrain, {
   trainer_name: [],
-  environment: [],
-  map_id: [],
-  edge_type: []
-})
+  environment:  [],
+  map_id:       [],
+  edge_type:    []
+}) # FIX: was missing closing }) before the class definition
 
 class Battle::Field_electerrain < Battle::Field
   def initialize(battle, duration = Battle::Field::DEFAULT_FIELD_DURATION)
     super
-    @id = :electerrain
+    @id   = :electerrain
     @name = _INTL("Electric Terrain")
-    
+
     # Field announcement message
     @field_announcement[:start] = _INTL("The field is hyper-charged!")
-    
+
     # Nature Power and related moves
-    @nature_power_change = :THUNDERBOLT
-    @mimicry_type = :ELECTRIC
-    @camouflage_type = :ELECTRIC
-    @secret_power_effect = :SHOCKWAVE
-    @terrain_pulse_type = :ELECTRIC
-    
+    @nature_power_change  = :THUNDERBOLT
+    @mimicry_type         = :ELECTRIC
+    @camouflage_type      = :ELECTRIC
+    @secret_power_effect  = :SHOCKWAVE
+    @terrain_pulse_type   = :ELECTRIC
+
     # Status moves boosted by this field
     @status_mods = [] # Add status moves that are boosted
-    
+
     # Seed data
     @seed_type = nil # Set if this field has a special seed
-    
-    # Define multipliers using the new format
-    # Format: [multiplier_type, multiplier_value, message, condition_proc]
-    
+
+    # -------------------------------------------------------------------------
+    # FIX: Multipliers must be stored as:
+    #   @multipliers[[:mult_type, value, message_string]] = proc { ... }
+    # The VALUE must be a bare Proc — NOT an array containing a Proc.
+    # The human-readable message goes in position [2] of the KEY array.
+    # -------------------------------------------------------------------------
+
     # Explosion/Self-Destruct get hyper-charged (1.5x, Electric type)
-    @multipliers[[:power_multiplier, 1.5, "explosion"]] = [
-      :power_multiplier,
-      1.5,
-      _INTL("The explosion became hyper-charged!"),
-      proc { |user, target, numTargets, move, type, power, mults|
-        next [:EXPLOSION, :SELFDESTRUCT].include?(move.id)
-      }
-    ]
-    
+    @multipliers[[:power_multiplier, 1.5, _INTL("The explosion became hyper-charged!")]] = proc { |user, target, numTargets, move, type, power, mults|
+      next [:EXPLOSION, :SELFDESTRUCT].include?(move.id)
+    }
+
     # Hurricane, Surf, etc. get hyper-charged (1.5x)
-    @multipliers[[:power_multiplier, 1.5, "water_wind"]] = [
-      :power_multiplier,
-      1.5,
-      _INTL("The attack became hyper-charged!"),
-      proc { |user, target, numTargets, move, type, power, mults|
-        next [:HURRICANE, :SURF, :SMACKDOWN, :MUDDYWATER, :THOUSANDARROWS].include?(move.id)
-      }
-    ]
-    
+    @multipliers[[:power_multiplier, 1.5, _INTL("The attack became hyper-charged!")]] = proc { |user, target, numTargets, move, type, power, mults|
+      next [:HURRICANE, :SURF, :SMACKDOWN, :MUDDYWATER, :THOUSANDARROWS].include?(move.id)
+    }
+
     # Magnet Bomb powered up (2.0x)
-    @multipliers[[:power_multiplier, 2.0, "magnet"]] = [
-      :power_multiplier,
-      2.0,
-      _INTL("The attack powered up!"),
-      proc { |user, target, numTargets, move, type, power, mults|
-        next move.id == :MAGNETBOMB
-      }
-    ]
-    
+    @multipliers[[:power_multiplier, 2.0, _INTL("The attack powered up!")]] = proc { |user, target, numTargets, move, type, power, mults|
+      next move.id == :MAGNETBOMB
+    }
+
     # Electric-type moves boosted (1.5x) if user is grounded
-    @multipliers[[:power_multiplier, 1.5, "electric"]] = [
-      :power_multiplier,
-      1.5,
-      _INTL("The Electric Terrain strengthened the attack!"),
-      proc { |user, target, numTargets, move, type, power, mults|
-        next false unless type == :ELECTRIC
-        next !user.airborne? # Grounded Pokemon only
-      }
-    ]
-    
+    @multipliers[[:power_multiplier, 1.5, _INTL("The Electric Terrain strengthened the attack!")]] = proc { |user, target, numTargets, move, type, power, mults|
+      next false unless type == :ELECTRIC
+      next !user.airborne? # Grounded Pokemon only
+    }
+
     # Add move type changes
     @effects[:base_type_change] = proc { |user, move, ret|
       if [:EXPLOSION, :SELFDESTRUCT, :SMACKDOWN, :SURF, :MUDDYWATER, :HURRICANE, :THOUSANDARROWS].include?(move.id)
@@ -191,7 +164,7 @@ class Battle::Field_electerrain < Battle::Field
       end
       next nil
     }
-    
+
     # Add move second type effects
     @effects[:move_second_type] = proc { |ret, move, moveType, defType, user, target|
       if [:EXPLOSION, :SELFDESTRUCT, :SMACKDOWN, :SURF, :MUDDYWATER, :HURRICANE, :THOUSANDARROWS].include?(move.id)
@@ -206,55 +179,39 @@ end
 # Template for Converting Other Fields
 # Copy this template for each field in FIELDEFFECTS
 #===============================================================================
-
 # To convert a field from the old format, follow these steps:
-#
 # 1. Register the field:
 #    Battle::Field.register(:fieldname, {
 #      trainer_name: [],
-#      environment: [],
-#      map_id: [],
-#      edge_type: []
+#      environment:  [],
+#      map_id:       [],
+#      edge_type:    []
 #    })
-#
 # 2. Create the field class:
 #    class Battle::Field_fieldname < Battle::Field
 #      def initialize(battle, duration = Battle::Field::DEFAULT_FIELD_DURATION)
 #        super
-#        @id = :fieldname
+#        @id   = :fieldname
 #        @name = _INTL("Field Display Name")
-#
 # 3. Convert field messages:
 #    @field_announcement[:start] = _INTL("Message from :fieldMessage array")
-#
 # 4. Convert move changes:
 #    @nature_power_change = :MOVEID  # from :naturePower
-#    @mimicry_type = :TYPE           # from :mimicry
+#    @mimicry_type        = :TYPE    # from :mimicry
 #    @secret_power_effect = :MOVEID  # from :secretPower
-#
 # 5. Convert damage mods and type boosts to multipliers:
-#    For each entry in :damageMods:
-#      @multipliers[[:power_multiplier, value, "key"]] = [
-#        :power_multiplier,
-#        value,
-#        _INTL("Message from :moveMessages"),
-#        proc { |user, target, numTargets, move, type, power, mults|
-#          next move.id == :MOVEID
-#        }
-#      ]
+#    CORRECT format — value is a bare proc, message string is in the key:
 #
-#    For each entry in :typeBoosts:
-#      @multipliers[[:power_multiplier, value, "type_key"]] = [
-#        :power_multiplier,
-#        value,
-#        _INTL("Message from :typeMessages"),
-#        proc { |user, target, numTargets, move, type, power, mults|
-#          next false unless type == :TYPENAME
-#          # Add condition from :typeCondition if it exists
-#          next true
-#        }
-#      ]
+#    @multipliers[[:power_multiplier, value, _INTL("Message text")]] = proc { |user, target, numTargets, move, type, power, mults|
+#      next move.id == :MOVEID
+#    }
 #
+#    For type boosts:
+#    @multipliers[[:power_multiplier, value, _INTL("Message text")]] = proc { |user, target, numTargets, move, type, power, mults|
+#      next false unless type == :TYPENAME
+#      # Add condition from :typeCondition if it exists
+#      next true
+#    }
 # 6. Convert type mods:
 #    @effects[:base_type_change] = proc { |user, move, ret|
 #      if [:MOVE1, :MOVE2].include?(move.id)  # from :typeMods
@@ -262,80 +219,73 @@ end
 #      end
 #      next nil
 #    }
-#
 # 7. Convert status mods:
 #    @status_mods = [:MOVE1, :MOVE2]  # from :statusMods array
-#
 # 8. Convert seed data:
-#    @seed_type = :SEEDTYPE        # from :seed[:seedtype]
-#    @seed_effect = :EFFECT        # from :seed[:effect]
-#    @seed_duration = duration     # from :seed[:duration]
-#    @seed_message = _INTL("msg")  # from :seed[:message]
-#    @seed_animation = :ANIM       # from :seed[:animation]
-#    @seed_stats = {}              # from :seed[:stats]
-#
+#    @seed_type      = :SEEDTYPE       # from :seed[:seedtype]
+#    @seed_effect    = :EFFECT         # from :seed[:effect]
+#    @seed_duration  = duration        # from :seed[:duration]
+#    @seed_message   = _INTL("msg")   # from :seed[:message]
+#    @seed_animation = :ANIM          # from :seed[:animation]
+#    @seed_stats     = {}             # from :seed[:stats]
 # 9. Convert field changes:
 #    # Field changes are handled through events in the new system
 #    # Add to @effects[:end_of_move] or appropriate trigger
-#
 # 10. Convert accuracy mods:
 #     @effects[:accuracy_modify] = proc { |user, target, move, modifiers, calcType|
 #       if move.id == :MOVEID
 #         modifiers[:accuracy_multiplier] = value
 #       end
 #     }
-#
 # 11. Handle overlay effects (for Rejuvenation):
 #     @overlay_status_mods = [:MOVE1]  # from :overlay[:statusMods]
-#     @overlay_type_mods = {}          # from :overlay[:typeMods]
+#     @overlay_type_mods   = {}        # from :overlay[:typeMods]
 #     # Similar conversion for other overlay properties
-
 #===============================================================================
 # Conversion Script for All Fields
 # This script can be used to automatically convert fields
 #===============================================================================
-
 # Uncomment and run this in the console to generate conversion templates:
 =begin
 if defined?(FIELDEFFECTS)
   FIELDEFFECTS.each do |field_id, field_data|
     next if field_id == :INDOOR # Skip base field
-    
+
     puts "#" + "="*79
     puts "# #{field_data[:name] || field_id.to_s.capitalize}"
     puts "#" + "="*79
     puts ""
     puts "Battle::Field.register(:#{field_id.to_s.downcase}, {"
     puts "  trainer_name: [],"
-    puts "  environment: [],"
-    puts "  map_id: [],"
-    puts "  edge_type: []"
+    puts "  environment:  [],"
+    puts "  map_id:       [],"
+    puts "  edge_type:    []"
     puts "})"
     puts ""
     puts "class Battle::Field_#{field_id.to_s.downcase} < Battle::Field"
     puts "  def initialize(battle, duration = Battle::Field::DEFAULT_FIELD_DURATION)"
     puts "    super"
-    puts "    @id = :#{field_id.to_s.downcase}"
+    puts "    @id   = :#{field_id.to_s.downcase}"
     puts "    @name = _INTL(\"#{field_data[:name]}\")" if field_data[:name]
     puts ""
-    
+
     # Field message
     if field_data[:fieldMessage] && !field_data[:fieldMessage].empty?
       puts "    @field_announcement[:start] = _INTL(\"#{field_data[:fieldMessage][0]}\")"
     end
-    
+
     # Nature Power, etc.
     puts "    @nature_power_change = :#{field_data[:naturePower]}" if field_data[:naturePower]
-    puts "    @mimicry_type = :#{field_data[:mimicry]}" if field_data[:mimicry]
+    puts "    @mimicry_type        = :#{field_data[:mimicry]}"     if field_data[:mimicry]
     puts "    @secret_power_effect = :#{field_data[:secretPower]}" if field_data[:secretPower]
     puts ""
-    
+
     # Status mods
     if field_data[:statusMods] && !field_data[:statusMods].empty?
       puts "    @status_mods = #{field_data[:statusMods].inspect}"
       puts ""
     end
-    
+
     puts "    # TODO: Convert damage mods, type boosts, and other effects"
     puts "    # See template above for details"
     puts "  end"
@@ -348,12 +298,11 @@ end
 #===============================================================================
 # Additional Field Effect Handlers
 #===============================================================================
-
 # Handler for field-specific passive damage (burning fields, underwater, etc.)
 class Battle::Battler
   def field_passive_damage?
     return false if fainted?
-    
+
     case @battle.current_field&.id
     when :volcanic, :superheated, :volcanictop, :infernal
       # Burning field passive damage
@@ -366,7 +315,7 @@ class Battle::Battler
         return false if move_data && [:DIG, :DIVE].include?(move_data.function_code)
       end
       return true
-      
+
     when :underwater
       # Underwater field passive damage
       return false if hasType?(:WATER)
@@ -374,15 +323,15 @@ class Battle::Battler
       effectiveness = Effectiveness.calculate(:WATER, *pbTypes(true))
       return false if effectiveness <= Effectiveness::NOT_VERY_EFFECTIVE_ONE
       return true
-      
+
     when :murkwatersurface
       # Murky water surface passive damage (poison-like)
       return false if hasType?(:STEEL) || hasType?(:POISON)
-      return false if hasActiveAbility?([:POISONHEAL, :MAGICGUARD, :WONDERGUARD, 
+      return false if hasActiveAbility?([:POISONHEAL, :MAGICGUARD, :WONDERGUARD,
                                          :TOXICBOOST, :IMMUNITY, :PASTELVEIL, :SURGESURFER])
       return true
     end
-    
+
     return false
   end
 end
@@ -391,7 +340,7 @@ end
 class Battle::Move
   def field_defense_boost(type, target)
     defmult = 1.0
-    
+
     case @battle.current_field&.id
     when :misty
       defmult *= 1.5 if pbSpecialMove?(type) && target.hasType?(:FAIRY)
@@ -420,7 +369,7 @@ class Battle::Move
     when :darkness3
       defmult *= 1.2 if target.hasType?(:DARK) || target.hasType?(:GHOST)
     end
-    
+
     return defmult
   end
 end
@@ -433,31 +382,31 @@ class Battle
   def get_field_roll(update_roll: true, maximize_roll: false)
     field = @current_field
     return nil unless field
-    
+
     case field.id
     when :crystalcavern
-      choices = [1, 2, 3, 4, 5, 6] # Example roll choices
+      choices = [1, 2, 3, 4, 5, 6]
       counter = @field_counters.counter
-      result = choices[counter % choices.length]
+      result  = choices[counter % choices.length]
       @field_counters.counter = (counter + 1) % choices.length if update_roll
       result = choices.max if maximize_roll
       return result
-      
+
     when :shortcircuit
-      choices = [1, 2, 3, 4, 5, 6] # Example roll choices
+      choices = [1, 2, 3, 4, 5, 6]
       counter = @field_counters.counter
-      result = choices[counter % choices.length]
+      result  = choices[counter % choices.length]
       @field_counters.counter = (counter + 1) % choices.length if update_roll
       result = choices.max if maximize_roll
       return result
     end
-    
+
     return nil
   end
-  
+
   # Reset field-specific counters
   def reset_field_counters
-    @field_counters.counter = 0
+    @field_counters.counter  = 0
     @field_counters.counter2 = 0
     @field_counters.counter3 = 0
   end
@@ -466,17 +415,14 @@ end
 #===============================================================================
 # Notes for Full Conversion
 #===============================================================================
-
 # The Battle_Field.rb file contains a PokeBattle_Field class with the following
 # key features that need to be converted:
-#
 # 1. Field layers (@layer array) - Already handled by stacked_fields in new system
 # 2. Field counters (@counter, @counter2, etc.) - Added as @field_counters object
 # 3. Pledge moves (@pledge) - Needs to be added to Battle class
 # 4. Field duration and conditions - Already handled in new system
 # 5. Field overlay system - Already handled in new system
 # 6. Roll system for certain fields - Added as get_field_roll method
-#
 # To complete the conversion:
 # 1. Convert each field definition from FIELDEFFECTS hash to Battle::Field_xxx class
 # 2. Test each field's mechanics in battle
