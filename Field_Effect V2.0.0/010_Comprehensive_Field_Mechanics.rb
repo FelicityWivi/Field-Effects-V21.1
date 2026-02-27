@@ -1194,12 +1194,13 @@ BACK_ALLEY_IDS = %i[backalley].freeze
 
 # Passive healing reduction (33%)
 class Battle::Battler
+  alias back_alley_base_pbRecoverHP pbRecoverHP if method_defined?(:pbRecoverHP)
   def pbRecoverHP(amt, anim = true)
     # Reduce healing by 33% on Back Alley
     if @battle.has_field? && BACK_ALLEY_IDS.include?(@battle.current_field.id)
       amt = (amt * 0.67).round
     end
-    return super
+    respond_to?(:back_alley_base_pbRecoverHP) ? back_alley_base_pbRecoverHP(amt, anim) : super
   end
 end
 
@@ -3679,14 +3680,14 @@ class Battle::Battler
   
   alias forest_pbLowerStatStage pbLowerStatStage if method_defined?(:pbLowerStatStage)
   
-  def pbLowerStatStage(stat, increment, user, show_messages = true, ignore_contrary = false)
+  def pbLowerStatStage(stat, increment, user, show_messages = true, ignore_contrary = false, ignore_mirror_armor = false)
     # Boost Sticky Web effect if flagged
     if @forest_sticky_web_boost && stat == :SPEED
       increment += 1  # Make it -2 instead of -1
       @forest_sticky_web_boost = nil
     end
     
-    respond_to?(:forest_pbLowerStatStage) ? forest_pbLowerStatStage(stat, increment, user, show_messages, ignore_contrary) : super
+    respond_to?(:forest_pbLowerStatStage) ? forest_pbLowerStatStage(stat, increment, user, show_messages, ignore_contrary, ignore_mirror_armor) : super
   end
 end
 
