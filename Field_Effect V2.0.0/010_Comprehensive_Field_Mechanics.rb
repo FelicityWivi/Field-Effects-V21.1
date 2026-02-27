@@ -1725,8 +1725,9 @@ BEWITCHED_WOODS_IDS = %i[bewitched].freeze
 
 # Sleep damage (1/16 HP), Grass healing (1/16 HP) EOR
 class Battle
+  alias bewitched_woods_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    bewitched_woods_pbEndOfRoundPhase
     return unless has_field? && BEWITCHED_WOODS_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -1849,8 +1850,9 @@ end
 # Sunny Day: Grass/Water take 1/8 damage EOR (unless Solar Power/Chlorophyll)
 # Grass/Water healed by Water moves in Sunny Day
 class Battle
+  alias desert_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    desert_pbEndOfRoundPhase
     return unless has_field? && DESERT_FIELD_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -1881,8 +1883,9 @@ CORROSIVE_FIELD_IDS = %i[corrosive].freeze
 # Sleeping Pokemon take 1/16 HP damage
 # Ingrain/Grass Pelt damage users
 class Battle
+  alias corrosive_field_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    corrosive_field_pbEndOfRoundPhase
     return unless has_field? && CORROSIVE_FIELD_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -1996,8 +1999,9 @@ CORROSIVE_MIST_IDS = %i[corrosivemist].freeze
 # Aqua Ring damages users
 # Dry Skin damages users (heals Poison types)
 class Battle
+  alias corrosive_mist_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    corrosive_mist_pbEndOfRoundPhase
     return unless has_field? && CORROSIVE_MIST_IDS.include?(current_field.id)
     # Check for Neutralizing Gas
     neutralizing_gas_active = allBattlers.any? { |b| b.hasActiveAbility?(:NEUTRALIZINGGAS) }
@@ -2050,8 +2054,9 @@ CORRUPTED_CAVE_IDS = %i[corrupted].freeze
 # EOR damage for Grass Pelt/Leaf Guard/Flower Veil
 # EOR healing for Poison Heal
 class Battle
+  alias corrupted_cave_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    corrupted_cave_pbEndOfRoundPhase
     return unless has_field? && CORRUPTED_CAVE_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted?
@@ -2256,8 +2261,9 @@ end
 
 # EOR damage to non-Water weak to Water
 class Battle
+  alias underwater_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    underwater_pbEndOfRoundPhase
     return unless has_field? && UNDERWATER_IDS.include?(current_field.id)
     allBattlers.each do |b|
       next if b.fainted? || b.pbHasType?(:WATER)
@@ -2369,8 +2375,9 @@ Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE,
 
 # Whirlpool - 1/6 damage, Aqua Ring - 1/8 healing, Tar Shot wash
 class Battle
+  alias water_surface_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    super
+    water_surface_pbEndOfRoundPhase
     return unless has_field? && WATER_SURFACE_IDS.include?(current_field.id)
     allBattlers.each do |battler|
       next if battler.fainted?
@@ -2823,15 +2830,9 @@ end
 
 # Hail weather transformation to Snowy Mountain after 3 consecutive turns
 class Battle
+  alias mountain_field_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase)
   def pbEndOfRoundPhase
-    # call parent phase if it exists
-    if method(:pbEndOfRoundPhase).super_method
-      begin
-        super
-      rescue NoMethodError
-        # nothing to do
-      end
-    end
+    mountain_field_pbEndOfRoundPhase
     # Check for Hail on Mountain Field
     if has_field? && MOUNTAIN_FIELD_IDS.include?(current_field.id)
       if [:Hail, :Snow].include?(field.weather)
