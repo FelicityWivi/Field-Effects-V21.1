@@ -203,8 +203,6 @@ module FieldTestSuite
     begin; Graphics.update; rescue SystemExit, Interrupt => e; raise e; rescue Exception; end  # Keep game responsive
     _log "-" * 72
     _log "FIELD #{idx}/#{total}: :#{field_id}"
-    # Print directly so current field is always visible even amid $DEBUG spam
-    Console.echo_li("[FieldTest] >>> Testing field #{idx}/#{total}: :#{field_id} <<<") rescue nil
 
     # 1. Instantiation ────────────────────────────────────────────────────────
     field = nil
@@ -454,6 +452,16 @@ module FieldTestSuite
   # HEADLESS BATTLE CONSTRUCTION
   #-----------------------------------------------------------------------------
   def self._build_headless_battle
+    # Stub DBK scene methods that DebugSceneNoVisuals doesn't implement.
+    # These are called by DBK's midbattle scripting during stat raises etc.
+    unless Battle::DebugSceneNoVisuals.method_defined?(:pbForceEndSpeech)
+      Battle::DebugSceneNoVisuals.class_eval do
+        def pbForceEndSpeech(*); end
+        def pbShowOpponentSpeech(*); end
+        def pbShowPlayerSpeech(*); end
+        def pbHideSpeech(*); end
+      end
+    end
     scene = Battle::DebugSceneNoVisuals.new(false)
 
     s1 = _first_valid_species
@@ -639,22 +647,16 @@ module FieldTestSuite
     end
     return nil unless pkmn
     # Populate moves by writing directly into the moves array.
-    # We deliberately avoid pbLearnMove because its signature varies across
-    # PE forks (some require 2-4 args) and RGSS logs every ArgumentError to
-    # the console the instant it is raised, even when rescued.
+    # Avoids pbLearnMove whose signature varies across PE forks — RGSS logs
+    # every ArgumentError to the console instantly, even when rescued.
     GameData::Species.get(species).moves.each do |move_data|
       move_id = move_data[1]
       next unless GameData::Move.exists?(move_id)
       break if pkmn.numMoves >= Pokemon::MAX_MOVES
-      begin
-        pkmn.moves.push(Pokemon::Move.new(move_id))
-      rescue Exception; end
+      begin; pkmn.moves.push(Pokemon::Move.new(move_id)); rescue Exception; end
     end
-    # Guarantee at least one move
     if pkmn.numMoves == 0
-      begin
-        pkmn.moves.push(Pokemon::Move.new(:TACKLE)) if GameData::Move.exists?(:TACKLE)
-      rescue Exception; end
+      begin; pkmn.moves.push(Pokemon::Move.new(:TACKLE)) if GameData::Move.exists?(:TACKLE); rescue Exception; end
     end
     return pkmn
   rescue Exception => e
