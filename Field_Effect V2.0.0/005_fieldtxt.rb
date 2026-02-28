@@ -3892,7 +3892,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"Once upon a time!"
 	],
-	:graphic => ["EnchantedForest"],
+	:graphic => ["Enchanted_Forest"],
 	:secretPower => "DAZZLINGGLEAM",
 	:naturePower => :DAZZLINGGLEAM,
 	:mimicry => :FAIRY,

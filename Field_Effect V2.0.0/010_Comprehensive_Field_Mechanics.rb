@@ -72,7 +72,7 @@ end
 # 2. MOVE FAILURES
 #===============================================================================
 class Battle::Move
-  # avoid alias so method may not exist yet
+  alias field_failed_moves_pbFailsAgainstTarget? pbFailsAgainstTarget? if method_defined?(:pbFailsAgainstTarget?)
   def pbFailsAgainstTarget?(user, target, show_message)
     # Check if field causes this move to fail
     if @battle.has_field? && @battle.current_field.failed_moves
@@ -81,7 +81,7 @@ class Battle::Move
         return true
       end
     end
-    return super
+    respond_to?(:field_failed_moves_pbFailsAgainstTarget?) ? field_failed_moves_pbFailsAgainstTarget?(user, target, show_message) : super
   end
 end
 
@@ -570,6 +570,7 @@ end
 
 # Prevent status from being inflicted
 class Battle::Battler
+  alias field_pbCanInflictStatus? pbCanInflictStatus? if method_defined?(:pbCanInflictStatus?)
   def pbCanInflictStatus?(newStatus, user, showMessages, move = nil, ignoreStatus = false)
     # Check if field blocks this status
     if @battle.has_field? && @battle.current_field.respond_to?(:blocked_statuses)
@@ -1748,20 +1749,16 @@ end
 
 # Prankster works on Dark-types
 class Battle::Move
+  alias bewitched_woods_move_pbFailsAgainstTarget? pbFailsAgainstTarget? if method_defined?(:pbFailsAgainstTarget?)
   def pbFailsAgainstTarget?(user, target, show_message)
     if @battle.has_field? && BEWITCHED_WOODS_IDS.include?(@battle.current_field.id)
       # Don't block Prankster on Dark-types in Bewitched Woods
       if @priority > 0 && user.hasActiveAbility?(:PRANKSTER)
         # Allow it to work - skip the Dark-type immunity check
-        if method(:pbFailsAgainstTarget?).super_method
-          return super unless target.pbHasType?(:DARK)
-        end
+        return bewitched_woods_move_pbFailsAgainstTarget?(user, target, show_message) unless target.pbHasType?(:DARK)
       end
     end
-    if method(:pbFailsAgainstTarget?).super_method
-      return super
-    end
-    return false
+    return bewitched_woods_move_pbFailsAgainstTarget?(user, target, show_message)
   end
 end
 
@@ -2604,6 +2601,7 @@ Battle::AbilityEffects::OnSwitchIn.add(:DOWNLOAD,
 
 # Poison Gas/Smog - Always hit and badly poison
 class Battle::Move::PoisonTarget
+  alias city_poison_target_pbFailsAgainstTarget? pbFailsAgainstTarget? if method_defined?(:pbFailsAgainstTarget?)
   def pbFailsAgainstTarget?(user, target, show_message)
     if [:POISONGAS, :SMOG].include?(@id) &&
        @battle.has_field? &&
@@ -2612,7 +2610,7 @@ class Battle::Move::PoisonTarget
       @city_field_boost = true
       return false if target.pbCanPoison?(user, false, self)
     end
-    return super
+    respond_to?(:city_poison_target_pbFailsAgainstTarget?) ? city_poison_target_pbFailsAgainstTarget?(user, target, show_message) : super
   end
   
   def pbEffectAgainstTarget(user, target)
@@ -6685,31 +6683,6 @@ class Battle::Battler
 end
 
 # Hook into on_seed_use at the Battle level — called by seed item consumption
-class Battle
-  alias inverse_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = inverse_seed_apply_field_effect(effect_name, *args)
-
-    # After the standard seed effect fires, check if we're on Inverse Field
-    # and the seed was a Magical Seed — then apply the Normalize + type change
-    if effect_name == :on_seed_use && has_field? && INVERSE_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        # Change type to Normal
-        battler.type1 = :NORMAL
-        battler.type2 = :NONE
-        battler.effects[PBEffects::Type3] = :NONE if PBEffects.const_defined?(:Type3)
-        # Mark as normalized (all their moves will be Normal-type)
-        battler.inverse_normalized = true
-        pbDisplay(_INTL("{1}'s type became Normal!", battler.pbThis))
-      end
-    end
-
-    result
-  end
-end
 
 # Override pbBaseType so normalized battlers' moves are always Normal-type
 class Battle::Move
@@ -7187,27 +7160,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:PRESSURE_DIMENSIONAL,
 #──────────────────────────────────────────────────────────────────────────────
 # SEED X: Magical Seed — additionally activates Trick Room (battle-wide)
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias dimensional_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = dimensional_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && DIMENSIONAL_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        # Activate Trick Room for 5 turns
-        if PBEffects.const_defined?(:TrickRoom)
-          @field.effects[PBEffects::TrickRoom] = 5
-          pbDisplay(_INTL("The dimensions warped into a Trick Room!"))
-        end
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # RAINBOW FIELD MECHANICS
@@ -7528,26 +7480,6 @@ end
 #──────────────────────────────────────────────────────────────────────────────
 # SEED O: Magical Seed — additionally applies Healing Wish to the user
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias rainbow_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = rainbow_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && RAINBOW_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        if PBEffects.const_defined?(:HealingWish)
-          battler.effects[PBEffects::HealingWish] = true
-          pbDisplay(_INTL("{1} made a wish for its future self!", battler.pbThis))
-        end
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # STARLIGHT ARENA MECHANICS
@@ -7884,27 +7816,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:ILLUMINATE_STARLIGHT,
 #──────────────────────────────────────────────────────────────────────────────
 # SEED: Magical Seed — boosts Sp. Atk (fieldtxt) + applies Wish to the user
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias starlight_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = starlight_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && STARLIGHT_ARENA_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        if PBEffects.const_defined?(:Wish)
-          battler.effects[PBEffects::Wish]      = 2
-          battler.effects[PBEffects::WishAmount] = (battler.totalhp / 2.0).round if PBEffects.const_defined?(:WishAmount)
-          pbDisplay(_INTL("{1} made a wish upon the stars!", battler.pbThis))
-        end
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # NEW WORLD FIELD MECHANICS
@@ -8235,26 +8146,6 @@ Battle::AbilityEffects::DamageCalcFromUser.add(:VICTORYSTAR_NEWWORLD,
 #──────────────────────────────────────────────────────────────────────────────
 # SEED: Magical Seed boosts all stats and makes the user recharge next turn
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias newworld_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = newworld_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && NEW_WORLD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        # All-stat boost handled by fieldtxt :stats key
-        # Apply MustRecharge
-        battler.effects[PBEffects::MustRecharge] = true if PBEffects.const_defined?(:MustRecharge)
-        pbDisplay(_INTL("{1} is recharging after the cosmic surge!", battler.pbThis))
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # FACTORY FIELD MECHANICS
@@ -8936,25 +8827,6 @@ Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE_SWAMP,
 #──────────────────────────────────────────────────────────────────────────────
 # SEED K: Telluric Seed — +1 Defense (fieldtxt) + changes ability to Clear Body
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias swamp_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = swamp_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && SWAMP_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :TELLURICSEED && battler && !battler.fainted?
-        old_ability = battler.ability
-        battler.ability = :CLEARBODY
-        pbDisplay(_INTL("{1}'s ability changed to Clear Body!", battler.pbThis))
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # WASTELAND FIELD MECHANICS
@@ -9355,26 +9227,6 @@ Battle::AbilityEffects::CriticalCalcFromUser.add(:MERCILESS_WASTELAND,
 #──────────────────────────────────────────────────────────────────────────────
 # SEED: Telluric Seed — Atk + SpAtk (fieldtxt) + lay Stealth Rock on both sides
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias wasteland_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = wasteland_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && WASTELAND_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :TELLURICSEED && battler && !battler.fainted?
-        sides.each do |side|
-          side.effects[PBEffects::StealthRock] = true
-        end
-        pbDisplay(_INTL("Stealth Rocks were laid on both sides!"))
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # DEEP EARTH FIELD MECHANICS
@@ -9779,24 +9631,6 @@ Battle::AbilityEffects::SpeedCalc.add(:FLOATSTONE_DEEPEARTH,
 # SEED X: Telluric Seed — +Def (fieldtxt) + doubles holder's weight
 # We track the weight doubling via a battler flag.
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias deepearth_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = deepearth_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && DEEP_EARTH_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :TELLURICSEED && battler && !battler.fainted?
-        battler.instance_variable_set(:@deep_earth_weight_doubled, true)
-        pbDisplay(_INTL("{1}'s weight increased under the earth's pull!", battler.pbThis))
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # GLITCH FIELD MECHANICS
@@ -10137,24 +9971,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:DOWNLOAD_GLITCH,
 #──────────────────────────────────────────────────────────────────────────────
 # SEED Q: Synthetic Seed — +Def +SpDef (fieldtxt) + make user ??? type
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias glitch_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = glitch_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && GLITCH_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :SYNTHETICSEED && battler && !battler.fainted?
-        battler.pbChangeTypes(:QMARKS) rescue nil
-        pbDisplay(_INTL("{1} glitched into ??? type!", battler.pbThis))
-      end
-    end
-
-    result
-  end
-end
 
 #──────────────────────────────────────────────────────────────────────────────
 # ITEM R: Drives — Genesect becomes immune to the drive's type
@@ -11321,26 +11137,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:EVASION_BOOST_MIRRORARENA,
 # SEED: Synthetic Seed — +2 Evasion (fieldtxt stat block is empty;
 #       we apply it via apply_field_effect alias)
 #──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias mirror_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = mirror_seed_apply_field_effect(effect_name, *args)
-
-    if effect_name == :on_seed_use && has_field? && MIRROR_ARENA_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :SYNTHETICSEED && battler && !battler.fainted?
-        2.times do
-          battler.pbRaiseStatStage(:EVASION, 1, battler) if battler.pbCanRaiseStatStage?(:EVASION, battler, nil)
-        end
-        pbDisplay(_INTL("{1}'s Evasion sharply rose!", battler.pbThis))
-      end
-    end
-
-    result
-  end
-end
 
 #===============================================================================
 # INDOOR FIELD (Neutral field — no special mechanics)
@@ -11393,33 +11189,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:STEALTHROCK_CAVE,
 )
 
 # Telluric Seed: +2 Def + takes Stealth Rock damage
-class Battle
-  alias cave_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = cave_seed_apply_field_effect(effect_name, *args)
-    if effect_name == :on_seed_use &&
-       has_field? && CAVE_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :TELLURICSEED && battler && !battler.fainted?
-        # Stealth Rock hazard damage
-        if battler.pbOwnSide.effects[PBEffects::StealthRock]
-          bTypes = battler.pbTypes(true)
-          eff = Effectiveness.calculate(:ROCK, *bTypes)
-          unless Effectiveness.ineffective?(eff)
-            eff_mult = eff.to_f / Effectiveness::NORMAL_EFFECTIVE
-            dmg = (battler.totalhp * eff_mult / 8).round
-            battler.pbReduceHP(dmg, false)
-            pbDisplay(_INTL("{1} was hurt by the Stealth Rocks!", battler.pbThis))
-            battler.pbFaint if battler.fainted?
-          end
-        end
-      end
-    end
-    result
-  end
-end
 
 #===============================================================================
 # FLOWER GARDEN FIELD (Stages 1–5)
@@ -11844,23 +11613,6 @@ class Battle::Move::StartWonderRoom
 end
 
 # Magical Seed on PsyTerrain: +2 SpAtk + confuse
-class Battle
-  alias psyterrain_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = psyterrain_seed_apply_field_effect(effect_name, *args)
-    if effect_name == :on_seed_use &&
-       has_field? && PSYCHIC_TERRAIN_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        battler.pbConfuse if battler.pbCanConfuse?(battler, false, nil)
-        pbDisplay(_INTL("{1}'s mind was overwhelmed!", battler.pbThis))
-      end
-    end
-    result
-  end
-end
 
 #===============================================================================
 # ENCHANTED FOREST — Custom field mechanics
@@ -12004,56 +11756,11 @@ end
 # ITEM 2: Frozen Dimensional seed — secondary effects (confuse/taunt/torment)
 # fieldtxt note says these are hardcoded. Apply based on seed animation key.
 #─────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias frozendim_seed_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = frozendim_seed_apply_field_effect(effect_name, *args)
-    if effect_name == :on_seed_use &&
-       has_field? && FROZEN_DIMENSION_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :SYNTHETICSEED && battler && !battler.fainted?
-        # Apply Confusion, Taunt, and Torment as secondary effects
-        battler.pbConfuse if (battler.pbCanConfuse?(battler, false, nil) rescue false)
-        if PBEffects.const_defined?(:Taunt)
-          battler.effects[PBEffects::Taunt] = 4 unless battler.effects[PBEffects::Taunt] > 0 rescue nil
-          pbDisplay(_INTL("{1} fell into a dimensional rage!", battler.pbThis))
-        end
-        if PBEffects.const_defined?(:Torment)
-          battler.effects[PBEffects::Torment] = true unless battler.effects[PBEffects::Torment] rescue nil
-        end
-      end
-    end
-    result
-  end
-end
 
 #─────────────────────────────────────────────────────────────────────────────
 # ITEM 4: Inverse Field — Magical Seed Normalize (type → Normal + Normalize)
 # on_seed_use hook for Inverse/Magical Seed
 #─────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias inverse_seed2_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = inverse_seed2_apply_field_effect(effect_name, *args)
-    if effect_name == :on_seed_use &&
-       has_field? && INVERSE_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        battler.pbChangeTypes(:NORMAL) rescue nil
-        # Grant Normalize effect: mark it via a custom flag since ability change
-        # could break things; use a battle-level tracker instead
-        @inverse_normalized_battlers ||= []
-        @inverse_normalized_battlers << battler.index
-        pbDisplay(_INTL("{1} was normalized!", battler.pbThis))
-      end
-    end
-    result
-  end
-end
 
 # Normalize effect: all moves become Normal type for inverse_normalized battlers
 class Battle::Move
@@ -12137,25 +11844,6 @@ end
 #─────────────────────────────────────────────────────────────────────────────
 # ITEM 11: Dimensional — Magical Seed applies Trick Room
 #─────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias dimensional_seed2_apply_field_effect apply_field_effect
-
-  def apply_field_effect(effect_name, *args)
-    result = dimensional_seed2_apply_field_effect(effect_name, *args)
-    if effect_name == :on_seed_use &&
-       has_field? && DIMENSIONAL_FIELD_IDS.include?(current_field.id)
-      battler = args[0]
-      item    = args[1]
-      if item == :MAGICALSEED && battler && !battler.fainted?
-        if PBEffects.const_defined?(:TrickRoom)
-          @field.effects[PBEffects::TrickRoom] = 5 rescue nil
-          pbDisplay(_INTL("The Dimensional Seed warped space-time!"))
-        end
-      end
-    end
-    result
-  end
-end
 
 #─────────────────────────────────────────────────────────────────────────────
 # ITEM 13: Rainbow — Special Normal moves get random type
@@ -12573,3 +12261,122 @@ class Battle::Battler
   end
 end
 
+
+#===============================================================================
+# CONSOLIDATED apply_field_effect — Seed item effects for all fields
+# Replaces 15 separate chained overrides with a single 1-deep override.
+#===============================================================================
+class Battle
+  alias consolidated_seed_apply_field_effect apply_field_effect
+
+  def apply_field_effect(effect_name, *args)
+    result = consolidated_seed_apply_field_effect(effect_name, *args)
+
+    if effect_name == :on_seed_use && has_field?
+      battler = args[0]
+      item    = args[1]
+
+      if INVERSE_FIELD_IDS.include?(current_field.id)
+        if item == :MAGICALSEED && battler && !battler.fainted?
+          battler.type1 = :NORMAL
+          battler.type2 = :NONE
+          battler.effects[PBEffects::Type3] = :NONE if PBEffects.const_defined?(:Type3)
+          battler.inverse_normalized = true
+          pbDisplay(_INTL("{1}'s type became Normal!", battler.pbThis))
+        end
+
+      elsif DIMENSIONAL_FIELD_IDS.include?(current_field.id)
+        if item == :MAGICALSEED && battler && !battler.fainted?
+          if PBEffects.const_defined?(:TrickRoom)
+            @field.effects[PBEffects::TrickRoom] = 5 rescue nil
+            pbDisplay(_INTL("The dimensions warped into a Trick Room!"))
+          end
+        end
+
+      elsif RAINBOW_FIELD_IDS.include?(current_field.id)
+        if item == :MAGICALSEED && battler && !battler.fainted?
+          if PBEffects.const_defined?(:HealingWish)
+            battler.effects[PBEffects::HealingWish] = true
+            pbDisplay(_INTL("{1} made a wish for its future self!", battler.pbThis))
+          end
+        end
+
+      elsif STARLIGHT_ARENA_IDS.include?(current_field.id)
+        if item == :MAGICALSEED && battler && !battler.fainted?
+          if PBEffects.const_defined?(:Wish)
+            battler.effects[PBEffects::Wish]      = 2
+            battler.effects[PBEffects::WishAmount] = (battler.totalhp / 2.0).round if PBEffects.const_defined?(:WishAmount)
+            pbDisplay(_INTL("{1} made a wish upon the stars!", battler.pbThis))
+          end
+        end
+
+      elsif NEW_WORLD_IDS.include?(current_field.id)
+        if item == :MAGICALSEED && battler && !battler.fainted?
+          battler.effects[PBEffects::MustRecharge] = true if PBEffects.const_defined?(:MustRecharge)
+          pbDisplay(_INTL("{1} is recharging after the cosmic surge!", battler.pbThis))
+        end
+
+      elsif SWAMP_FIELD_IDS.include?(current_field.id)
+        if item == :TELLURICSEED && battler && !battler.fainted?
+          battler.ability = :CLEARBODY
+          pbDisplay(_INTL("{1}'s ability changed to Clear Body!", battler.pbThis))
+        end
+
+      elsif WASTELAND_IDS.include?(current_field.id)
+        if item == :TELLURICSEED && battler && !battler.fainted?
+          sides.each { |side| side.effects[PBEffects::StealthRock] = true }
+          pbDisplay(_INTL("Stealth Rocks were laid on both sides!"))
+        end
+
+      elsif DEEP_EARTH_IDS.include?(current_field.id)
+        if item == :TELLURICSEED && battler && !battler.fainted?
+          battler.instance_variable_set(:@deep_earth_weight_doubled, true)
+          pbDisplay(_INTL("{1}'s weight increased under the earth's pull!", battler.pbThis))
+        end
+
+      elsif GLITCH_FIELD_IDS.include?(current_field.id)
+        if item == :SYNTHETICSEED && battler && !battler.fainted?
+          battler.pbChangeTypes(:QMARKS) rescue nil
+          pbDisplay(_INTL("{1} glitched into ??? type!", battler.pbThis))
+        end
+
+      elsif MIRROR_ARENA_IDS.include?(current_field.id)
+        if item == :SYNTHETICSEED && battler && !battler.fainted?
+          2.times { battler.pbRaiseStatStage(:EVASION, 1, battler) if battler.pbCanRaiseStatStage?(:EVASION, battler, nil) }
+          pbDisplay(_INTL("{1}'s Evasion sharply rose!", battler.pbThis))
+        end
+
+      elsif CAVE_FIELD_IDS.include?(current_field.id)
+        if item == :TELLURICSEED && battler && !battler.fainted?
+          if battler.pbOwnSide.effects[PBEffects::StealthRock]
+            bTypes   = battler.pbTypes(true)
+            eff      = Effectiveness.calculate(:ROCK, *bTypes)
+            unless Effectiveness.ineffective?(eff)
+              eff_mult = eff.to_f / Effectiveness::NORMAL_EFFECTIVE
+              dmg      = (battler.totalhp * eff_mult / 8).round
+              battler.pbReduceHP(dmg, false)
+              pbDisplay(_INTL("{1} was hurt by the Stealth Rocks!", battler.pbThis))
+              battler.pbFaint if battler.fainted?
+            end
+          end
+        end
+
+      elsif PSYCHIC_TERRAIN_IDS.include?(current_field.id)
+        if item == :MAGICALSEED && battler && !battler.fainted?
+          battler.pbConfuse if battler.pbCanConfuse?(battler, false, nil)
+          pbDisplay(_INTL("{1}'s mind was overwhelmed!", battler.pbThis))
+        end
+
+      elsif FROZEN_DIMENSION_IDS.include?(current_field.id)
+        if item == :SYNTHETICSEED && battler && !battler.fainted?
+          battler.pbConfuse if (battler.pbCanConfuse?(battler, false, nil) rescue false)
+          battler.effects[PBEffects::Taunt]   = 4    if PBEffects.const_defined?(:Taunt)   rescue nil
+          battler.effects[PBEffects::Torment] = true if PBEffects.const_defined?(:Torment) rescue nil
+          pbDisplay(_INTL("{1} fell into a dimensional rage!", battler.pbThis))
+        end
+      end
+    end
+
+    result
+  end
+end
