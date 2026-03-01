@@ -555,8 +555,12 @@ end
 
 # Prevent status from being inflicted
 class Battle::Battler
+  # IMPORTANT: alias so we chain through 003_Field_base_and_keys.rb's version
+  # (which handles :status_immunity), not skip straight to the original PE method.
+  alias blocked_status_pbCanInflictStatus? pbCanInflictStatus?
+
   def pbCanInflictStatus?(newStatus, user, showMessages, move = nil, ignoreStatus = false)
-    # Check if field blocks this status
+    # Check if field blocks this status via blockedStatuses list
     if @battle.has_field? && @battle.current_field.respond_to?(:blocked_statuses)
       blocked = @battle.current_field.blocked_statuses
       if blocked && blocked.include?(newStatus)
@@ -582,9 +586,9 @@ class Battle::Battler
         return false
       end
     end
-    
-    # Call original
-    return field_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
+
+    # Chain through 003's status_immunity check, then to original PE
+    return blocked_status_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
   end
 end
 
@@ -2557,6 +2561,8 @@ Battle::AbilityEffects::OnSwitchIn.add(:DOWNLOAD,
 
 # Poison Gas/Smog - Always hit and badly poison
 class Battle::Move::PoisonTarget
+  alias city_pbFailsAgainstTarget? pbFailsAgainstTarget? if method_defined?(:pbFailsAgainstTarget?)
+
   def pbFailsAgainstTarget?(user, target, show_message)
     if [:POISONGAS, :SMOG].include?(@id) &&
        @battle.has_field? &&
@@ -2565,9 +2571,11 @@ class Battle::Move::PoisonTarget
       @city_field_boost = true
       return false if target.pbCanPoison?(user, false, self)
     end
-    return super
+    respond_to?(:city_pbFailsAgainstTarget?) ? city_pbFailsAgainstTarget?(user, target, show_message) : super
   end
-  
+
+  alias city_pbEffectAgainstTarget pbEffectAgainstTarget if method_defined?(:pbEffectAgainstTarget)
+
   def pbEffectAgainstTarget(user, target)
     if @city_field_boost
       # Badly poison instead of regular poison
@@ -2575,7 +2583,7 @@ class Battle::Move::PoisonTarget
       @city_field_boost = nil
       return 0
     end
-    
+
     respond_to?(:city_pbEffectAgainstTarget) ? city_pbEffectAgainstTarget(user, target) : super
   end
 end

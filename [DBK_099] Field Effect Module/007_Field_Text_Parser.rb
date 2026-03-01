@@ -360,26 +360,20 @@ class FieldTextParser
             end
           end
           
-          if multiplier == 0
-            # Register as a true move BLOCKER so the move fully fails (no damage, no effects)
-            existing_block = @effects[:block_move] || proc { |*_| false }
-            captured_moves   = moves
-            captured_message = message
-            @effects[:block_move] = proc { |move, user, target, targets, typeMod, show_message, priority|
-              result = existing_block.call(move, user, target, targets, typeMod, show_message, priority)
-              next true if result  # Already blocked by another rule
-              if captured_moves.include?(move.id)
-                @battle.pbDisplay(captured_message) if show_message && captured_message && !captured_message.empty?
-                next true  # Block the move
-              end
-              next false
-            }
+          # Determine multiplier type based on value
+          mult_type = if multiplier == 0
+            nil # Move fails
+          elsif multiplier < 1.0
+            :power_multiplier
           else
-            mult_type = :power_multiplier
-            @multipliers[[mult_type, multiplier, message]] = proc { |user, target, numTargets, move, type, power, mults|
-              next true if moves.include?(move.id)
-            }
+            :power_multiplier
           end
+          
+          next unless mult_type
+          
+          @multipliers[[mult_type, multiplier, message]] = proc { |user, target, numTargets, move, type, power, mults|
+            next true if moves.include?(move.id)
+          }
         end
       end
       
@@ -398,74 +392,45 @@ class FieldTextParser
             end
           end
           
-          if multiplier == 0
-            # Register as a true move BLOCKER so the move fully fails (no damage, no effects)
-            existing_block = @effects[:block_move] || proc { |*_| false }
-            captured_types   = types
-            captured_message = message
-            captured_conditions = type_conditions
-            @effects[:block_move] = proc { |move, user, target, targets, typeMod, show_message, priority|
-              result = existing_block.call(move, user, target, targets, typeMod, show_message, priority)
-              next true if result  # Already blocked by another rule
-
-              move_type = move.pbCalcType(user)
-              next false unless captured_types.include?(move_type)
-
-              # Check type condition if one exists for this type
-              if captured_conditions && captured_conditions[move_type]
-                condition = captured_conditions[move_type]
-                begin
-                  condition_str = condition.dup
-                  condition_str.gsub!('attacker', 'user')
-                  condition_str.gsub!('opponent', 'target')
-                  condition_str.gsub!('self', 'move')
-                  condition_str.gsub!('isAirborne?', 'airborne?')
-                  condition_str.gsub!('!user.airborne?', 'user.grounded?')
-                  condition_str.gsub!('!target.airborne?', 'target.grounded?')
-                  condition_str.gsub!('pbIsSpecial?', 'pbSpecialMove?')
-                  condition_str.gsub!('pbIsPhysical?', 'pbPhysicalMove?')
-                  next false unless eval(condition_str)
-                rescue
-                  next false  # If condition errors, don't block
-                end
-              end
-
-              @battle.pbDisplay(captured_message) if show_message && captured_message && !captured_message.empty?
-              next true  # Block the move
-            }
-          else
-            @multipliers[[:power_multiplier, multiplier, message]] = proc { |user, target, numTargets, move, type, power, mults|
-              next false unless types.include?(type)
+          @multipliers[[:power_multiplier, multiplier, message]] = proc { |user, target, numTargets, move, type, power, mults|
+            next false unless types.include?(type)
+            
+            # Check type condition if exists
+            if type_conditions && type_conditions[type]
+              condition = type_conditions[type]
               
-              # Check type condition if exists
-              if type_conditions && type_conditions[type]
-                condition = type_conditions[type]
+              # Parse and evaluate condition
+              begin
+                # Replace common condition variables
+                condition_str = condition.dup
+                condition_str.gsub!('attacker', 'user')
+                condition_str.gsub!('opponent', 'target')
+                condition_str.gsub!('isAirborne?', 'airborne?')
+                condition_str.gsub!('!user.airborne?', 'user.grounded?')
+                condition_str.gsub!('!target.airborne?', 'target.grounded?')
+                # Fix self.move (move ID check) before replacing 'self' broadly
+                condition_str.gsub!('self.move', 'move.id')
+                # Replace remaining 'self' with 'move' (method calls on the move object)
+                condition_str.gsub!('self', 'move')
+                # Fix move.move that could still remain
+                condition_str.gsub!('move.move', 'move.id')
+                # PE21 method names: pbIsSpecial?/pbIsPhysical? with optional arg -> no-arg versions
+                condition_str.gsub!(/\.pbIsSpecial\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.specialMove?')
+                condition_str.gsub!(/\.pbIsPhysical\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.physicalMove?')
+                condition_str.gsub!('pbIsSpecial?', 'specialMove?')
+                condition_str.gsub!('pbIsPhysical?', 'physicalMove?')
                 
-                # Parse and evaluate condition
-                begin
-                  # Replace common condition variables
-                  condition_str = condition.dup
-                  condition_str.gsub!('attacker', 'user')
-                  condition_str.gsub!('opponent', 'target')
-                  condition_str.gsub!('self', 'move')
-                  condition_str.gsub!('isAirborne?', 'airborne?')
-                  condition_str.gsub!('!user.airborne?', 'user.grounded?')
-                  condition_str.gsub!('!target.airborne?', 'target.grounded?')
-                  condition_str.gsub!('pbIsSpecial?', 'pbSpecialMove?')
-                  condition_str.gsub!('pbIsPhysical?', 'pbPhysicalMove?')
-                  
-                  # Evaluate condition in context
-                  result = eval(condition_str)
-                  next result
-                rescue => e
-                  # If condition fails to evaluate, skip it
-                  next true
-                end
+                # Evaluate condition in context
+                result = eval(condition_str)
+                next result
+              rescue => e
+                # If condition fails to evaluate, skip it
+                next true
               end
-              
-              next true
-            }
-          end
+            end
+            
+            next true
+          }
         end
       end
       
@@ -802,12 +767,16 @@ class FieldTextParser
                 condition_str = condition.dup
                 condition_str.gsub!('attacker', 'user')
                 condition_str.gsub!('opponent', 'target')
-                condition_str.gsub!('self', 'move')
                 condition_str.gsub!('isAirborne?', 'airborne?')
                 condition_str.gsub!('!user.airborne?', 'user.grounded?')
                 condition_str.gsub!('!target.airborne?', 'target.grounded?')
-                condition_str.gsub!('pbIsSpecial?', 'pbSpecialMove?')
-                condition_str.gsub!('pbIsPhysical?', 'pbPhysicalMove?')
+                condition_str.gsub!('self.move', 'move.id')
+                condition_str.gsub!('self', 'move')
+                condition_str.gsub!('move.move', 'move.id')
+                condition_str.gsub!(/\.pbIsSpecial\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.specialMove?')
+                condition_str.gsub!(/\.pbIsPhysical\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.physicalMove?')
+                condition_str.gsub!('pbIsSpecial?', 'specialMove?')
+                condition_str.gsub!('pbIsPhysical?', 'physicalMove?')
                 
                 result = eval(condition_str)
                 next result
