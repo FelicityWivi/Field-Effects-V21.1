@@ -414,9 +414,10 @@ class FieldTextParser
                 condition_str.gsub!('self', 'move')
                 # Fix move.move that could still remain
                 condition_str.gsub!('move.move', 'move.id')
-                # PE21 method names: pbIsSpecial?/pbIsPhysical? with optional arg -> no-arg versions
-                condition_str.gsub!(/\.pbIsSpecial\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.specialMove?')
-                condition_str.gsub!(/\.pbIsPhysical\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.physicalMove?')
+                # PE21 method names: strip any argument and use the correct no-arg versions
+                condition_str.gsub!(/\.pbIsSpecial\?\([^)]*\)/, '.specialMove?')
+                condition_str.gsub!(/\.pbIsPhysical\?\([^)]*\)/, '.physicalMove?')
+                # Fallback for no-arg usage (shouldn't occur in fieldtxt but safe)
                 condition_str.gsub!('pbIsSpecial?', 'specialMove?')
                 condition_str.gsub!('pbIsPhysical?', 'physicalMove?')
                 
@@ -773,8 +774,8 @@ class FieldTextParser
                 condition_str.gsub!('self.move', 'move.id')
                 condition_str.gsub!('self', 'move')
                 condition_str.gsub!('move.move', 'move.id')
-                condition_str.gsub!(/\.pbIsSpecial\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.specialMove?')
-                condition_str.gsub!(/\.pbIsPhysical\?[^,)]*\)?(?=\s*[&|!,)\]])/, '.physicalMove?')
+                condition_str.gsub!(/\.pbIsSpecial\?\([^)]*\)/, '.specialMove?')
+                condition_str.gsub!(/\.pbIsPhysical\?\([^)]*\)/, '.physicalMove?')
                 condition_str.gsub!('pbIsSpecial?', 'specialMove?')
                 condition_str.gsub!('pbIsPhysical?', 'physicalMove?')
                 
