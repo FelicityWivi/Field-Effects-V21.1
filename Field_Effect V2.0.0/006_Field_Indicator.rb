@@ -36,7 +36,7 @@ class Battle
         next if base_mult == 1.0
         begin
           # Test if this multiplier applies
-          applies = calc_proc&.call(battler, target, 1, move, type, move.baseDamage, mults)
+          applies = calc_proc&.call(battler, target, 1, move, type, move.power, mults)
           next unless applies
           
           # Apply the multiplier

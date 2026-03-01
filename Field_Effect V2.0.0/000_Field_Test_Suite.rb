@@ -452,6 +452,16 @@ module FieldTestSuite
   # HEADLESS BATTLE CONSTRUCTION
   #-----------------------------------------------------------------------------
   def self._build_headless_battle
+    # Stub DBK scene methods that DebugSceneNoVisuals doesn't implement.
+    # These are called by DBK's midbattle scripting during stat raises etc.
+    unless Battle::DebugSceneNoVisuals.method_defined?(:pbForceEndSpeech)
+      Battle::DebugSceneNoVisuals.class_eval do
+        def pbForceEndSpeech(*); end
+        def pbShowOpponentSpeech(*); end
+        def pbShowPlayerSpeech(*); end
+        def pbHideSpeech(*); end
+      end
+    end
     scene = Battle::DebugSceneNoVisuals.new(false)
 
     s1 = _first_valid_species
@@ -633,18 +643,20 @@ module FieldTestSuite
       -> { Pokemon.new(species, level, owner) },
       -> { Pokemon.new(species, level) },
     ].each do |attempt|
-      begin; pkmn = attempt.call; break; rescue ArgumentError; end
+      begin; pkmn = attempt.call; break; rescue Exception; end
     end
     return nil unless pkmn
-    # Give it a full moveset using its natural learnset
+    # Populate moves by writing directly into the moves array.
+    # Avoids pbLearnMove whose signature varies across PE forks — RGSS logs
+    # every ArgumentError to the console instantly, even when rescued.
     GameData::Species.get(species).moves.each do |move_data|
-      next unless GameData::Move.exists?(move_data[1])
+      move_id = move_data[1]
+      next unless GameData::Move.exists?(move_id)
       break if pkmn.numMoves >= Pokemon::MAX_MOVES
-      pkmn.pbLearnMove(move_data[1])
+      begin; pkmn.moves.push(Pokemon::Move.new(move_id)); rescue Exception; end
     end
-    # Guarantee at least one move
     if pkmn.numMoves == 0
-      pkmn.pbLearnMove(:TACKLE) if GameData::Move.exists?(:TACKLE)
+      begin; pkmn.moves.push(Pokemon::Move.new(:TACKLE)) if GameData::Move.exists?(:TACKLE); rescue Exception; end
     end
     return pkmn
   rescue Exception => e
@@ -766,5 +778,29 @@ end
 #-------------------------------------------------------------------------------
 def pbFieldTestSuite
   Graphics.update
+  pbMessage(_INTL("Running Field Test Suite\nResults will be saved to field_test_results.txt in your game folder."))
+  Graphics.update
   FieldTestSuite.run
+  output = FieldTestSuite::CONFIG[:output_path]
+  fails  = FieldTestSuite.instance_variable_get(:@results)&.dig(:fail) || 0
+  if fails == 0
+    pbMessage(_INTL("Field Test Suite complete!\nAll tests passed.\nReport saved to: {1}", output))
+  else
+    pbMessage(_INTL("Field Test Suite complete!\n{1} failure(s) detected.\nReport saved to: {2}", fails, output))
+  end
+end
+
+#-------------------------------------------------------------------------------
+# PE v21.1 Debug Menu integration
+#-------------------------------------------------------------------------------
+if defined?(MenuHandlers)
+  MenuHandlers.add(:debug_menu, :field_test_suite, {
+    "name"        => _INTL("Field Test Suite"),
+    "parent"      => :debug_menu,
+    "description" => _INTL("Stress-test all registered field effects. Writes field_test_results.txt to the game folder."),
+    "effect"      => proc { |owner, button|
+      pbFieldTestSuite
+      next false
+    }
+  })
 end
