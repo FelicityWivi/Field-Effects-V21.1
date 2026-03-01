@@ -1068,10 +1068,10 @@ end
 class Battle::Move::TargetStatDownMove
   include FieldStatStageMod
   
-  alias field_stat_down_pbOnStartUse pbOnStartUse if method_defined?(:pbOnStartUse)
+  alias fieldeffects_statdown_pbOnStartUse pbOnStartUse if method_defined?(:pbOnStartUse)
   
   def pbOnStartUse(user, targets)
-    respond_to?(:field_stat_down_pbOnStartUse) ? field_stat_down_pbOnStartUse(user, targets) : super
+    respond_to?(:fieldeffects_statdown_pbOnStartUse) ? fieldeffects_statdown_pbOnStartUse(user, targets) : super
     @field_stat_config = nil
     config = field_stat_stage_config
     return unless config
@@ -1086,11 +1086,11 @@ class Battle::Move::TargetStatDownMove
     @field_stat_config = config if config[:message]
   end
   
-  alias field_stat_down_pbEffectAgainstTarget pbEffectAgainstTarget if method_defined?(:pbEffectAgainstTarget)
+  alias fieldeffects_statdown_pbEffectAgainstTarget pbEffectAgainstTarget if method_defined?(:pbEffectAgainstTarget)
   
   def pbEffectAgainstTarget(user, target)
     unless @field_stat_config&.dig(:message)
-      respond_to?(:field_stat_down_pbEffectAgainstTarget) ? field_stat_down_pbEffectAgainstTarget(user, target) : super
+      respond_to?(:fieldeffects_statdown_pbEffectAgainstTarget) ? fieldeffects_statdown_pbEffectAgainstTarget(user, target) : super
       return
     end
     stat, stages = @statDown[0], @statDown[1]
@@ -1107,10 +1107,10 @@ end
 class Battle::Move::StatUpMove
   include FieldStatStageMod
   
-  alias field_stat_up_pbOnStartUse pbOnStartUse if method_defined?(:pbOnStartUse)
+  alias fieldeffects_statup_pbOnStartUse pbOnStartUse if method_defined?(:pbOnStartUse)
   
   def pbOnStartUse(user, targets)
-    respond_to?(:field_stat_up_pbOnStartUse) ? field_stat_up_pbOnStartUse(user, targets) : super
+    respond_to?(:fieldeffects_statup_pbOnStartUse) ? fieldeffects_statup_pbOnStartUse(user, targets) : super
     @field_stat_config = nil
     config = field_stat_stage_config
     return unless config
@@ -1125,11 +1125,11 @@ class Battle::Move::StatUpMove
     @field_stat_config = config if config[:message]
   end
   
-  alias field_stat_up_pbEffectGeneral pbEffectGeneral if method_defined?(:pbEffectGeneral)
+  alias fieldeffects_statup_pbEffectGeneral pbEffectGeneral if method_defined?(:pbEffectGeneral)
   
   def pbEffectGeneral(user)
     unless @field_stat_config&.dig(:message)
-      respond_to?(:field_stat_up_pbEffectGeneral) ? field_stat_up_pbEffectGeneral(user) : super
+      respond_to?(:fieldeffects_statup_pbEffectGeneral) ? fieldeffects_statup_pbEffectGeneral(user) : super
       return
     end
     stat, stages = @statUp[0], @statUp[1]
@@ -1146,10 +1146,10 @@ end
 class Battle::Move::MultiStatUpMove
   include FieldStatStageMod
   
-  alias field_multi_stat_up_pbOnStartUse pbOnStartUse if method_defined?(:pbOnStartUse)
+  alias fieldeffects_multistatup_pbOnStartUse pbOnStartUse if method_defined?(:pbOnStartUse)
   
   def pbOnStartUse(user, targets)
-    respond_to?(:field_multi_stat_up_pbOnStartUse) ? field_multi_stat_up_pbOnStartUse(user, targets) : super
+    respond_to?(:fieldeffects_multistatup_pbOnStartUse) ? fieldeffects_multistatup_pbOnStartUse(user, targets) : super
     @field_stat_config = nil
     config = field_stat_stage_config
     return unless config
