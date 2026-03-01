@@ -1071,8 +1071,10 @@ class Battle::Move::TargetStatDownMove
     @field_stat_config = nil
     config = field_stat_stage_config
     return unless config
+    return unless @statDown && @statDown[1]  # Guard: some moves don't set @statDown
     
     new_stages = (@statDown[1] * (config[:stages] || 1)).round
+    return unless new_stages && new_stages > 0
     if $DEBUG
       Console.echo_li("[STAT MOD] #{id} @statDown #{@statDown[1]} -> #{new_stages} on #{@battle.current_field.name}")
     end
@@ -1108,8 +1110,10 @@ class Battle::Move::StatUpMove
     @field_stat_config = nil
     config = field_stat_stage_config
     return unless config
+    return unless @statUp && @statUp[1]  # Guard: some moves don't set @statUp
     
     new_stages = (@statUp[1] * (config[:stages] || 1)).round
+    return unless new_stages && new_stages > 0
     if $DEBUG
       Console.echo_li("[STAT MOD] #{id} @statUp #{@statUp[1]} -> #{new_stages} on #{@battle.current_field.name}")
     end
@@ -1145,6 +1149,7 @@ class Battle::Move::MultiStatUpMove
     @field_stat_config = nil
     config = field_stat_stage_config
     return unless config
+    return unless @statUp && !@statUp.empty?  # Guard: some moves don't set @statUp
     
     # Scale all stat entries in @statUp (format: [stat, stages, stat, stages, ...])
     new_statUp = @statUp.each_slice(2).map do |stat, stages|
@@ -2421,8 +2426,6 @@ Battle::AbilityEffects::OnSwitchIn.add(:SCHOOLING_WATERSURFACE,
 
 # Wave Crash - Recoil reduced to 25%
 class Battle::Move::RecoilQuarterOfDamageDealt
-  alias watersurface_pbEffectAfterAllHits pbEffectAfterAllHits
-
   def pbEffectAfterAllHits(user, target)
     if @battle.has_field? && WATER_SURFACE_IDS.include?(@battle.current_field.id)
       if @id == :WAVECRASH
