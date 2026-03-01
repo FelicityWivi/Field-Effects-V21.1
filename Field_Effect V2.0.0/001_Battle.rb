@@ -355,10 +355,7 @@ class Battle
         Console.echo_li("Processing EOR effects for #{battler.pbThis}")
       end
       apply_field_effect(:EOR_field_battler, battler)
-      # Do NOT call battler.pbFaint here. The base game's pbEndOfRoundPhase
-      # (which runs after this method) handles fainting with proper sprite
-      # sequencing. Calling pbFaint early causes sprites to become invisible
-      # before leech seed and other EOR effects try to animate against them.
+      battler.pbFaint if battler.fainted?
       return if decision != 0 # end of battle
     end
 
