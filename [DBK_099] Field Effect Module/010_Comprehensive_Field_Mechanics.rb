@@ -2421,6 +2421,8 @@ Battle::AbilityEffects::OnSwitchIn.add(:SCHOOLING_WATERSURFACE,
 
 # Wave Crash - Recoil reduced to 25%
 class Battle::Move::RecoilQuarterOfDamageDealt
+  alias watersurface_pbEffectAfterAllHits pbEffectAfterAllHits
+
   def pbEffectAfterAllHits(user, target)
     if @battle.has_field? && WATER_SURFACE_IDS.include?(@battle.current_field.id)
       if @id == :WAVECRASH
