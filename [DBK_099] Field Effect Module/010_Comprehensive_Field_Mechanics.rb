@@ -10168,7 +10168,30 @@ end
 #──────────────────────────────────────────────────────────────────────────────
 # PASSIVE C: KO grants Beast Boost — raise user's highest stat based on
 # KO'd opponent's highest stat
+#
+# lastAttacker tracking: Battle#lastAttacker holds an Array[4] of the last
+# attacker index per slot, populated by hooking pbReduceHP.
 #──────────────────────────────────────────────────────────────────────────────
+class Battle
+  def lastAttacker
+    @last_attacker_by_slot ||= Array.new(4, nil)
+  end
+end
+
+class Battle::Battler
+  alias colosseum_track_pbReduceHP pbReduceHP if method_defined?(:pbReduceHP)
+
+  def pbReduceHP(amt, anim = true, registerDamage = true)
+    ret = respond_to?(:colosseum_track_pbReduceHP) \
+            ? colosseum_track_pbReduceHP(amt, anim, registerDamage) \
+            : super
+    if amt > 0 && @damageState&.attacker
+      @battle.lastAttacker[@index] = @damageState.attacker.index rescue nil
+    end
+    ret
+  end
+end
+
 class Battle::Battler
   alias colosseum_ko_pbFaint pbFaint if method_defined?(:pbFaint)
 
