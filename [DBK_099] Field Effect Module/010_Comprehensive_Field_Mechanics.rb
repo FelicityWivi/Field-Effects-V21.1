@@ -188,6 +188,8 @@ class Battle::Move::TwoTurnMove
   
   # Show custom message at the very start of damage calculation
   def pbCalcDamage(user, target, *args)
+    # Record who is dealing damage so pbReduceHP can track lastAttacker
+    @battle.instance_variable_set(:@last_attacker_pending, user.index) rescue nil
     # Check if field allows instant execution and we haven't shown the message yet
     if @battle.has_field? && @battle.current_field.no_charging_moves
       if @battle.current_field.no_charging_moves.include?(@id)
@@ -10181,12 +10183,12 @@ end
 class Battle::Battler
   alias colosseum_track_pbReduceHP pbReduceHP if method_defined?(:pbReduceHP)
 
-  def pbReduceHP(amt, anim = true, registerDamage = true)
+  def pbReduceHP(amt, anim = true, registerDamage = true, anyAnim = true)
     ret = respond_to?(:colosseum_track_pbReduceHP) \
-            ? colosseum_track_pbReduceHP(amt, anim, registerDamage) \
+            ? colosseum_track_pbReduceHP(amt, anim, registerDamage, anyAnim) \
             : super
-    if amt > 0 && @damageState&.attacker
-      @battle.lastAttacker[@index] = @damageState.attacker.index rescue nil
+    if amt > 0 && @battle.respond_to?(:lastAttacker) && @battle.instance_variable_get(:@last_attacker_pending)
+      @battle.lastAttacker[@index] = @battle.instance_variable_get(:@last_attacker_pending)
     end
     ret
   end
