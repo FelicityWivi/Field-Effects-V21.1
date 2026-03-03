@@ -18,15 +18,17 @@
 
 #-------------------------------------------------------------------------------
 # Helper: pbFieldRecoverHP
-# Wraps pbRecoverHP so field-sourced healing bypasses DBK's boss HP scaling.
-# Falls back to a normal pbRecoverHP call when DBK is not installed.
+# 010_Comprehensive_Field_Mechanics.rb defines the base version.
+# Here we alias it to set @stopBoostedHPScaling before calling, so field-sourced
+# healing bypasses DBK's boss HP scaling. No-op when DBK is not installed.
 #-------------------------------------------------------------------------------
-class Battle::Battler
-  def pbFieldRecoverHP(amt, anim = true)
-    if PluginManager.installed?("Deluxe Battle Kit")
+if PluginManager.installed?("Deluxe Battle Kit")
+  class Battle::Battler
+    alias dbk_field_recover_hp_base pbFieldRecoverHP
+    def pbFieldRecoverHP(amt, anim = true)
       @stopBoostedHPScaling = true
+      dbk_field_recover_hp_base(amt, anim)
     end
-    pbRecoverHP(amt, anim)
   end
 end
 
