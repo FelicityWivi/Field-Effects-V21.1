@@ -22,6 +22,23 @@ class Battle::Battler
 end
 
 #===============================================================================
+# HELPER: allOtherBattlers
+# Returns all battlers (including fainted) except the one at the given index.
+# PE v21.1 does not define this method natively; field mechanics use it widely.
+# Fainted battlers are included so callers like the Glitch Field recharge-cancel
+# check (.any?(&:fainted?)) work correctly. Callers that want only living
+# battlers do their own `next if b.fainted?` guard inside their block.
+#===============================================================================
+class Battle
+  def allOtherBattlers(index)
+    # Returns all battlers except the one at the given index (including fainted).
+    # Callers that only want living battlers do their own `next if b.fainted?` check.
+    # Line 10200 (Glitch Field recharge cancel) specifically needs fainted battlers included.
+    return @battlers.select { |b| b && b.index != index }
+  end
+end
+
+#===============================================================================
 # 1. FIELD CLASS EXTENSIONS
 #===============================================================================
 class Battle::Field
@@ -3385,6 +3402,242 @@ Battle::AbilityEffects::OnSwitchIn.add(:RESUSCITATION,
 ) if GameData::Ability.exists?(:RESUSCITATION)
 
 # Power Spot - 1.5x damage boost (already handled in general Power Spot code)
+
+#===============================================================================
+# 24b. CANYON FIELD MECHANICS
+# Hybrid of Rocky Field and Forest Field.
+# Boosts Rock/Bug/Steel/Grass moves and native-type Pokemon (Bug/Grass/Rock).
+# Inherits Rocky flinch damage, miss recoil, Long Reach accuracy drop,
+# extra Stealth Rock damage, and Bulletproof dodge chance.
+# Inherits Forest Overgrow/Swarm always-on, Grass Pelt, Leaf Guard,
+# Sap Sipper EOR heal, and Effect Spore double-activation.
+#===============================================================================
+
+CANYON_FIELD_IDS = %i[canyon].freeze
+
+# ---------------------------------------------------------------------------
+# ROCKY side: Flinched Pokemon take 1/4 HP damage; raised Defense prevents flinch
+# ---------------------------------------------------------------------------
+class Battle::Battler
+  alias canyon_pbFlinch pbFlinch if method_defined?(:canyon_pbFlinch) == false && method_defined?(:pbFlinch)
+
+  def pbFlinch(user = nil)
+    if @battle.has_field? && CANYON_FIELD_IDS.include?(@battle.current_field.id)
+      if @stages[:DEFENSE] > 0
+        return false
+      end
+    end
+
+    ret = defined?(canyon_pbFlinch) ? canyon_pbFlinch(user) : super
+
+    if @battle.has_field? && CANYON_FIELD_IDS.include?(@battle.current_field.id)
+      if ret && !hasActiveAbility?([:STURDY, :STEADFAST])
+        dmg = (@totalhp / 4.0).round
+        pbReduceHP(dmg, false)
+        @battle.pbDisplay(_INTL("{1} was hurt by the rocks from flinching!", pbThis))
+      end
+    end
+
+    return ret
+  end
+end
+
+# ---------------------------------------------------------------------------
+# ROCKY side: Missing a physical contact move = 1/8 HP recoil (Gorilla Tactics x2)
+# ---------------------------------------------------------------------------
+class Battle::Battler
+  alias canyon_pbEffectsAfterMove pbEffectsAfterMove if method_defined?(:canyon_pbEffectsAfterMove) == false && method_defined?(:pbEffectsAfterMove)
+
+  def pbEffectsAfterMove(user, targets, move, numHits)
+    defined?(canyon_pbEffectsAfterMove) ? canyon_pbEffectsAfterMove(user, targets, move, numHits) : super
+
+    if @battle.has_field? && CANYON_FIELD_IDS.include?(@battle.current_field.id)
+      if move.physicalMove? && move.contactMove? && numHits == 0
+        return if user.hasActiveAbility?(:ROCKHEAD)
+        dmg = (user.totalhp / 8.0).round
+        dmg *= 2 if user.hasActiveAbility?(:GORILLATACTICS)
+        user.pbReduceHP(dmg, false)
+        @battle.pbDisplay(_INTL("{1} crashed into the canyon walls!", user.pbThis))
+      end
+    end
+  end
+end
+
+# ---------------------------------------------------------------------------
+# ROCKY side: Long Reach accuracy drop (0.9x)
+# ---------------------------------------------------------------------------
+class Battle::Move
+  alias canyon_pbBaseAccuracy pbBaseAccuracy if method_defined?(:canyon_pbBaseAccuracy) == false && method_defined?(:pbBaseAccuracy)
+
+  def pbBaseAccuracy(user, target)
+    ret = defined?(canyon_pbBaseAccuracy) ? canyon_pbBaseAccuracy(user, target) : super
+    if user.battle.has_field? && CANYON_FIELD_IDS.include?(user.battle.current_field.id)
+      return (ret * 0.9).round if user.hasActiveAbility?(:LONGREACH)
+    end
+    return ret
+  end
+end
+
+# ---------------------------------------------------------------------------
+# ROCKY side: Extra Stealth Rock damage on switch-in
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::OnSwitchIn.add(:CANYON_STEALTH_ROCK,
+  proc { |ability, battler, battle, switch_in|
+    next if !battle.has_field? || !CANYON_FIELD_IDS.include?(battle.current_field.id)
+    next if !battler.pbOwnSide.effects[PBEffects::StealthRock]
+    bTypes = battler.pbTypes(true)
+    eff = Effectiveness.calculate(:ROCK, *bTypes)
+    if !Effectiveness.ineffective?(eff)
+      eff = eff.to_f / Effectiveness::NORMAL_EFFECTIVE
+      battler.pbReduceHP(battler.totalhp * eff / 8, false)
+      battle.pbDisplay(_INTL("The sharp canyon rocks dug deeper into {1}!", battler.pbThis))
+    end
+  }
+) if GameData::Ability.exists?(:CANYON_STEALTH_ROCK) rescue nil
+
+# ---------------------------------------------------------------------------
+# ROCKY side: Bulletproof-blockable moves can be dodged (50% chance) by
+# Pokemon with Substitute or raised Defense
+# ---------------------------------------------------------------------------
+class Battle::Move
+  alias canyon_pbFailsAgainstTarget? pbFailsAgainstTarget? if method_defined?(:canyon_pbFailsAgainstTarget?) == false && method_defined?(:pbFailsAgainstTarget?)
+
+  CANYON_BULLETPROOF_MOVES = [
+    :ACIDSPRAY, :AURASPHERE, :BARRAGE, :BULLETSEED, :EGGBOMB, :ELECTROSPHERE,
+    :ENERGYBALL, :FOCUSBLAST, :GYROBALL, :ICEBALL, :MAGNETBOMB, :MISTBALL,
+    :MUDBOMB, :OCTAZOOKA, :POLLENPUFF, :PYROBALL, :ROCKWRECKER, :SEEDBOMB,
+    :SHADOWBALL, :SLUDGEBOMB, :WEATHERBALL, :ZAPCANNON
+  ].freeze
+
+  def pbFailsAgainstTarget?(user, target, show_message)
+    if @battle.has_field? && CANYON_FIELD_IDS.include?(@battle.current_field.id)
+      if CANYON_BULLETPROOF_MOVES.include?(@id)
+        if target.effects[PBEffects::Substitute] > 0 || target.stages[:DEFENSE] > 0
+          if rand(100) < 50
+            @battle.pbDisplay(_INTL("{1} ducked behind the canyon rocks!", target.pbThis)) if show_message
+            return true
+          end
+        end
+      end
+    end
+    defined?(canyon_pbFailsAgainstTarget?) ? canyon_pbFailsAgainstTarget?(user, target, show_message) : super
+  end
+end
+
+# ---------------------------------------------------------------------------
+# NATIVE-TYPE BONUS: Bug/Grass/Rock-type Pokemon deal 1.2x attack damage
+# (applied via calc_damage multiplier registered on the field itself, but we
+#  also handle it here so it shows in the UI multiplier pipeline)
+# ---------------------------------------------------------------------------
+class Battle::Move
+  alias canyon_pbCalcDamageMultipliers pbCalcDamageMultipliers if method_defined?(:canyon_pbCalcDamageMultipliers) == false && method_defined?(:pbCalcDamageMultipliers)
+
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    defined?(canyon_pbCalcDamageMultipliers) ? canyon_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers) : super
+    return unless @battle.has_field? && CANYON_FIELD_IDS.include?(@battle.current_field.id)
+    return unless damagingMove?
+    if user.pbHasType?(:BUG) || user.pbHasType?(:GRASS) || user.pbHasType?(:ROCK)
+      multipliers[:attack_multiplier] *= 1.2
+    end
+  end
+end
+
+# ---------------------------------------------------------------------------
+# FOREST side: Overgrow always active on Canyon Field (Grass moves 1.5x)
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::DamageCalcFromUser.add(:OVERGROW,
+  proc { |ability, user, target, move, mults, power, type|
+    next if type != :GRASS
+    if user.battle.has_field? && CANYON_FIELD_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 1.5
+    end
+  }
+) rescue nil
+
+# ---------------------------------------------------------------------------
+# FOREST side: Swarm always active on Canyon Field (Bug moves 1.5x)
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::DamageCalcFromUser.add(:SWARM,
+  proc { |ability, user, target, move, mults, power, type|
+    next if type != :BUG
+    if user.battle.has_field? && CANYON_FIELD_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 1.5
+    end
+  }
+) rescue nil
+
+# ---------------------------------------------------------------------------
+# FOREST side: Grass Pelt — physical defense boost
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::DamageCalcFromTarget.add(:GRASSPELT,
+  proc { |ability, user, target, move, mults, power, type|
+    next if !target.battle.has_field? || !CANYON_FIELD_IDS.include?(target.battle.current_field.id)
+    next if !move.physicalMove?(type)
+    mults[:defense_multiplier] *= 1.5
+  }
+) rescue nil
+
+# ---------------------------------------------------------------------------
+# FOREST side: Leaf Guard — status immunity
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::StatusImmunity.add(:LEAFGUARD,
+  proc { |ability, battler, status|
+    next true if battler.battle.has_field? && CANYON_FIELD_IDS.include?(battler.battle.current_field.id)
+    next false
+  }
+) rescue nil
+
+# ---------------------------------------------------------------------------
+# FOREST side: Sap Sipper — EOR heal 1/16 HP on Canyon Field
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::EndOfRoundHealing.add(:SAPSIPPER,
+  proc { |ability, battler, battle|
+    next if !battle.has_field? || !CANYON_FIELD_IDS.include?(battle.current_field.id)
+    next if battler.hp == battler.totalhp
+    battle.pbShowAbilitySplash(battler)
+    battler.pbFieldRecoverHP(battler.totalhp / 16)
+    if Battle::Scene::USE_ABILITY_SPLASH
+      battle.pbDisplay(_INTL("{1}'s HP was restored.", battler.pbThis))
+    else
+      battle.pbDisplay(_INTL("{1}'s {2} restored its HP.", battler.pbThis, battler.abilityName))
+    end
+    battle.pbHideAbilitySplash(battler)
+    next true
+  }
+) rescue nil
+
+# ---------------------------------------------------------------------------
+# FOREST side: Effect Spore activates at 60% on Canyon Field
+# ---------------------------------------------------------------------------
+Battle::AbilityEffects::OnBeingHit.add(:EFFECTSPORE,
+  proc { |ability, user, target, move, battle|
+    next if !move.pbContactMove?(user)
+    next if user.fainted?
+    chance = battle.has_field? && CANYON_FIELD_IDS.include?(battle.current_field.id) ? 60 : 30
+    next if rand(100) >= chance
+    r = rand(3)
+    case r
+    when 0
+      next if !user.pbCanSleep?(target, false)
+      battle.pbShowAbilitySplash(target)
+      msg = Battle::Scene::USE_ABILITY_SPLASH ? nil : _INTL("{1}'s {2} made {3} fall asleep!", target.pbThis, target.abilityName, user.pbThis(true))
+      user.pbSleep(msg)
+      battle.pbHideAbilitySplash(target)
+    when 1
+      next if !user.pbCanParalyze?(target, false)
+      battle.pbShowAbilitySplash(target)
+      msg = Battle::Scene::USE_ABILITY_SPLASH ? nil : _INTL("{1}'s {2} paralyzed {3}!", target.pbThis, target.abilityName, user.pbThis(true))
+      user.pbParalyze(msg)
+      battle.pbHideAbilitySplash(target)
+    when 2
+      next if !user.pbCanPoison?(target, false)
+      battle.pbShowAbilitySplash(target)
+      msg = Battle::Scene::USE_ABILITY_SPLASH ? nil : _INTL("{1}'s {2} poisoned {3}!", target.pbThis, target.abilityName, user.pbThis(true))
+      user.pbPoison(target, msg)
+      battle.pbHideAbilitySplash(target)
+    end
+  }
+) rescue nil
 
 #===============================================================================
 # 24. FOREST FIELD MECHANICS
