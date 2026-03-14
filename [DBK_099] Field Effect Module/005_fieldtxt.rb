@@ -191,7 +191,7 @@ FIELDEFFECTS = {
 	:fieldMessage => [
 		"The field is in full bloom."
 	],
-	:graphic => ["Grassy"],
+	:graphic => ["Grassy","FelicityTest"],
 	:secretPower => "SEEDBOMB",
 	:naturePower => :ENERGYBALL,
 	:mimicry => :GRASS,
@@ -3887,6 +3887,166 @@ FIELDEFFECTS = {
 		:stats => { :ATTACK => 1 },
 	},
 },
+:ENCHANTEDFOREST => {
+	:name => "Enchanted Forest",
+	:fieldMessage => [
+		"Once upon a time!"
+	],
+	:graphic => ["enchantedforest"],
+	:secretPower => "DAZZLINGGLEAM",
+	:naturePower => :DAZZLINGGLEAM,
+	:mimicry => :POISON,
+	:damageMods => {
+		1.5 => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALTORQUE, :FLEURCANNON, :RELICSONG,
+		        :AIRSLASH, :AQUACUTTER, :BEHEMOTHBLADE, :CEASELESSEDGE, :LEAFBLADE, :NIGHTSLASH, 
+		        :PSYCHOCUT, :RAZORSHELL, :SMARTSTRIKE, :SOLARBLADE, :STONEAXE, :TACHYONCUTTER, 
+		        :BITTERBLADE, :PSYBLADE],
+		1.4 => [:AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :HYPERBEAM, :ICEBEAM, 
+		        :PSYBEAM, :SIGNALBEAM, :TWINBEAM],
+		1.2 => [:DARKPULSE, :MOONBLAST, :NIGHTDAZE, :BLOODMOON],
+	},
+	:accuracyMods => {
+		85 => [:GRASSWHISTLE, :POISONPOWDER, :SLEEPPOWDER, :STUNSPORE],
+	},
+	:moveMessages => {
+		"Magic aura amplified the attack!" => [:HEX, :MYSTICALFIRE, :SPIRITBREAK, :MAGICALTORQUE, :FLEURCANNON, :RELICSONG],
+		"The Knight is Justified!" => [:AIRSLASH, :AQUACUTTER, :BEHEMOTHBLADE, :CEASELESSEDGE, :LEAFBLADE, :NIGHTSLASH, 
+		                                :PSYCHOCUT, :RAZORSHELL, :SMARTSTRIKE, :SOLARBLADE, :STONEAXE, :TACHYONCUTTER, 
+		                                :BITTERBLADE, :PSYBLADE],
+		"Magic aura amplified the beams!" => [:AURORABEAM, :BUBBLEBEAM, :CHARGEBEAM, :HYPERBEAM, :ICEBEAM, 
+		                                      :PSYBEAM, :SIGNALBEAM, :TWINBEAM],
+		"It was a curse!" => [:DARKPULSE, :MOONBLAST, :NIGHTDAZE, :BLOODMOON],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.5 => [:FAIRY, :GRASS, :POISON],
+		1.3 => [:DARK],
+	},
+	:typeMessages => {
+		"The enchanted aura boosted the attack!" => [:FAIRY],
+		"Flourish!" => [:GRASS],
+		"Poison seeps from the darkness!" => [:POISON],
+		"Not all fairy tales..." => [:DARK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:FORESTSCURSE, :MAGICPOWDER, :MOONLIGHT, :STRENGTHSAP],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:SPECIAL_DEFENSE => 1,
+		},
+	},
+	},
+:SAHARA => {
+	:name => "Sahara",
+	:fieldMessage => [
+		"The air is dry and humid."
+	],
+	:graphic => ["Sahara"],
+	:secretPower => "NEEDLEARM",
+	:naturePower => :NEEDLEARM,
+	:mimicry => :GROUND,
+	:damageMods => {
+		1.5 => [:NEEDLEARM, :OVERHEAT, :PINMISSILE, :ROCKWRECKER, :SANDTOMB, :SCORCHINGSANDS, :ATTACKORDER, :BUGBUZZ],
+		0.8 => [:WATER],
+	},
+	:accuracyMods => {},
+	:moveMessages => {
+		"The dry earth boosted the attack!" => [:NEEDLEARM, :OVERHEAT, :PINMISSILE, :ROCKWRECKER, :SANDTOMB, :SCORCHINGSANDS],
+		"They're coming out of the woodwork!" => [:ATTACKORDER, :BUGBUZZ],
+		"The water evaporated!" => [:WATER],
+	},
+	:typeMods => {
+		:WATER => [:ICE],
+	},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.3 => [:BUG, :FIRE, :GROUND, :ROCK],
+	},
+	:typeMessages => {
+		"The humid air boosted the attack!" => [:BUG, :FIRE, :GROUND, :ROCK],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:SANDATTACK, :DEFENDORDER, :SILVERWIND],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :TELLURICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:DEFENSE => 1,
+		},
+	},
+},
+:POISONLIBRARY => {
+	:name => "Poison Library",
+	:fieldMessage => [
+		"The library is seeping knowledge."
+	],
+	:graphic => ["PoisonLibrary"],
+	:secretPower => "ACID",
+	:naturePower => :ACID,
+	:mimicry => :POISON,
+	:damageMods => {},
+	:accuracyMods => {},
+	:moveMessages => {},
+	:typeMods => {},
+	:typeAddOns => {
+		:POISON => [:GRASS],
+		:FAIRY => [:PSYCHIC],
+	},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.4 => [:POISON],
+		1.2 => [:GRASS, :FIRE, :FAIRY],
+	},
+	:typeMessages => {
+		"The Poison permeates through the field!" => [:POISON],
+		"The library is overgrown!" => [:GRASS],
+		"Alexandria!" => [:FIRE],
+		"The power of knowledge!" => [:FAIRY],
+	},
+	:typeCondition => {
+		:POISON => "!attacker.isAirborne?",
+	},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :SYNTHETICSEED,
+		:effect => nil,
+		:duration => nil,
+		:message => nil,
+		:animation => nil,
+		:stats => {
+			:SPECIAL_ATTACK => 1,
+		},
+	},
+},
 
 :STARLIGHTARENA => {
 	:name => "Starlight Arena",
@@ -4085,4 +4245,75 @@ FIELDEFFECTS = {
 	},
 },
 
+:CANYON => {
+	:name => "Canyon Field",
+	:fieldMessage => [
+		"Rocky walls and tangled growth shift the battlefield!"
+	],
+	:graphic => ["Canyon"],
+	:secretPower => "ROCKTHROW",
+	:naturePower => :ROCKSMASH,
+	:mimicry => :ROCK,
+	:abilityActivate => {
+		:ROCKHEAD       => {},
+		:STURDY         => {},
+		:STEADFAST      => {},
+		:GORILLATACTICS => {},
+		:OVERGROW       => {},
+		:SWARM          => {},
+		:GRASSPELT      => {},
+		:LEAFGUARD      => {},
+		:SAPSIPPER      => {},
+	},
+	:moveStatStageMods => {
+		:ROCKPOLISH  => { stats_override: { :SPEED => 4 } },
+		:GROWTH      => { stats_override: { :ATTACK => 2, :SPECIAL_ATTACK => 2 }, message: "The canyon's harshness brought rapid growth!" },
+		:DEFENDORDER => { stats_override: { :DEFENSE => 2, :SPECIAL_DEFENSE => 2 }, message: "The swarm formed a canyon fortress!" },
+	},
+	:damageMods => {
+		2.0 => [:ROCKSMASH],
+		1.5 => [:ROCKCLIMB, :STRENGTH, :MAGNITUDE, :EARTHQUAKE, :BULLDOZE, :ACCELEROCK, :CUT, :SLASH, :AIRSLASH, :FURYCUTTER, :AIRCUTTER, :PSYCHOCUT, :BREAKINGSWIPE, :ATTACKORDER],
+	},
+	:accuracyMods => {},
+	:moveMessages => {
+		"SMASH'D!" => [:ROCKSMASH],
+		"The rocks strengthened the attack!" => [:ROCKCLIMB, :STRENGTH, :MAGNITUDE, :EARTHQUAKE, :BULLDOZE, :ACCELEROCK],
+		"A vine-wrapped rock slammed down!" => [:CUT, :SLASH, :AIRSLASH, :FURYCUTTER, :AIRCUTTER, :PSYCHOCUT, :BREAKINGSWIPE, :ATTACKORDER],
+	},
+	:typeMods => {
+		:ROCK  => [:ROCKCLIMB, :EARTHQUAKE, :MAGNITUDE, :STRENGTH, :BULLDOZE, :ACCELEROCK],
+		:GRASS => [:CUT, :SLASH, :AIRSLASH, :FURYCUTTER, :AIRCUTTER, :PSYCHOCUT, :BREAKINGSWIPE],
+	},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.5 => [:ROCK, :BUG],
+		1.3 => [:GRASS],
+		1.2 => [:STEEL],
+	},
+	:typeMessages => {
+		"The canyon amplified the attack!" => [:ROCK, :BUG],
+		"The hardy canyon growth strengthened the attack!" => [:GRASS],
+		"Mineral deposits powered the attack!" => [:STEEL],
+	},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [:ROCKPOLISH, :SANDSTORM, :STEALTHROCK, :STICKYWEB, :DEFENDORDER, :GROWTH, :STRENGTHSAP, :HEALORDER, :FORESTSCURSE],
+	:changeEffects => {},
+	:seed => {
+		:seedtype  => :TELLURICSEED,
+		:effect    => :Endure,
+		:duration  => 1,
+		:message   => "{1} braced itself against the rocky terrain!",
+		:animation => :STEALTHROCK,
+		:stats => {
+			:DEFENSE         => 1,
+			:SPECIAL_DEFENSE => 1,
+		},
+	},
+},
 }

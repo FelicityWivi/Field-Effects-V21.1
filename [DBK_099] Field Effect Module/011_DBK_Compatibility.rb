@@ -24,10 +24,10 @@
 #-------------------------------------------------------------------------------
 if PluginManager.installed?("Deluxe Battle Kit")
   class Battle::Battler
-    alias dbk_field_recover_hp_base pbFieldRecoverHP
+    alias dbk_field_recover_hp_base pbFieldRecoverHP if method_defined?(:pbFieldRecoverHP) && !method_defined?(:dbk_field_recover_hp_base)
     def pbFieldRecoverHP(amt, anim = true)
       @stopBoostedHPScaling = true
-      dbk_field_recover_hp_base(amt, anim)
+      respond_to?(:dbk_field_recover_hp_base) ? dbk_field_recover_hp_base(amt, anim) : super
     end
   end
 end
@@ -41,11 +41,11 @@ end
 #-------------------------------------------------------------------------------
 if PluginManager.installed?("Deluxe Battle Kit")
   class Battle::Move
-    alias field_dbk_pbCalcDamageMults_Field pbCalcDamageMults_Field
+    alias field_dbk_pbCalcDamageMults_Field pbCalcDamageMults_Field if method_defined?(:pbCalcDamageMults_Field) && !method_defined?(:field_dbk_pbCalcDamageMults_Field)
     def pbCalcDamageMults_Field(user, target, numTargets, type, baseDmg, multipliers)
       # Field effect already fired in pbCalcDamageMultipliers via 003's alias.
       # Run the standard DBK sub-method.
-      field_dbk_pbCalcDamageMults_Field(user, target, numTargets, type, baseDmg, multipliers)
+      respond_to?(:field_dbk_pbCalcDamageMults_Field) ? field_dbk_pbCalcDamageMults_Field(user, target, numTargets, type, baseDmg, multipliers) : super
     end
   end
 end

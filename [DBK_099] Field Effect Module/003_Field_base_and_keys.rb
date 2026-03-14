@@ -28,7 +28,7 @@ Battle::Field.register(:base, {
 
 # :accuracy_modify
 class Battle::Move
-  alias field_pbCalcAccuracyModifiers pbCalcAccuracyModifiers
+  alias field_pbCalcAccuracyModifiers pbCalcAccuracyModifiers unless method_defined?(:field_pbCalcAccuracyModifiers)
   def pbCalcAccuracyModifiers(user, target, modifiers)
     @battle.apply_field_effect(:accuracy_modify, user, target, self, modifiers, @calcType)
     field_pbCalcAccuracyModifiers(user, target, modifiers)
@@ -37,7 +37,7 @@ end
 
 # :base_type_change
 class Battle::Move
-  alias field_pbBaseType pbBaseType
+  alias field_pbBaseType pbBaseType unless method_defined?(:field_pbBaseType)
   def pbBaseType(user)
     ret = field_pbBaseType(user)
     ret_type = @battle.apply_field_effect(:base_type_change, user, self, ret)
@@ -50,7 +50,7 @@ end
 
 # :block_berry
 class Battle::Battler
-  alias field_canConsumeBerry? canConsumeBerry?
+  alias field_canConsumeBerry? canConsumeBerry? unless method_defined?(:field_canConsumeBerry?)
   def canConsumeBerry?(*args)
     ret = @battle.apply_field_effect(:block_berry, self)
     return false if ret
@@ -60,7 +60,7 @@ end
 
 # :block_heal
 class Battle::Battler
-  alias field_canHeal? canHeal?
+  alias field_canHeal? canHeal? unless method_defined?(:field_canHeal?)
   def canHeal?(*args)
     ret = @battle.apply_field_effect(:block_heal, self)
     return false if ret
@@ -70,7 +70,7 @@ end
 
 # :block_move
 class Battle::Battler
-  alias field_pbSuccessCheckAgainstTarget pbSuccessCheckAgainstTarget
+  alias field_pbSuccessCheckAgainstTarget pbSuccessCheckAgainstTarget unless method_defined?(:field_pbSuccessCheckAgainstTarget)
   def pbSuccessCheckAgainstTarget(move, user, target, targets)
     show_message = move.pbShowFailMessages?(targets)
     typeMod = move.pbCalcTypeMod(move.calcType, user, target)
@@ -90,7 +90,7 @@ end
 
 # :calc_damage
 class Battle::Move
-  alias field_pbCalcDamageMultipliers pbCalcDamageMultipliers
+  alias field_pbCalcDamageMultipliers pbCalcDamageMultipliers unless method_defined?(:field_pbCalcDamageMultipliers)
   def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
     @battle.apply_field_effect(:calc_damage, user, target, numTargets, self, type, baseDmg, multipliers)
 
@@ -102,7 +102,7 @@ end
 
 # :calc_speed
 class Battle::Battler
-  alias field_pbSpeed pbSpeed
+  alias field_pbSpeed pbSpeed unless method_defined?(:field_pbSpeed)
   def pbSpeed
     stageMul = [2, 2, 2, 2, 2, 2, 2, 3, 4, 5, 6, 7, 8]
     stageDiv = [8, 7, 6, 5, 4, 3, 2, 2, 2, 2, 2, 2, 2]
@@ -156,7 +156,7 @@ end
 
 # :expand_target
 class Battle::Move
-  alias field_pbTarget pbTarget
+  alias field_pbTarget pbTarget unless method_defined?(:field_pbTarget)
   def pbTarget(user)
     ret = @battle.apply_field_effect(:expand_target, user, self, @target)
     return GameData::Target.get(ret).id if ret
@@ -166,7 +166,7 @@ end
 
 # :floral_heal_amount
 class Battle::Move::HealTargetDependingOnGrassyTerrain
-  alias field_pbEffectAgainstTarget pbEffectAgainstTarget
+  alias field_pbEffectAgainstTarget pbEffectAgainstTarget unless method_defined?(:field_pbEffectAgainstTarget)
   def pbEffectAgainstTarget(user, target)
     hpGain = (target.totalhp / 2.0).round
     hpGain = (target.totalhp * 2 / 3.0).round if @battle.field.terrain == :Grassy
@@ -183,7 +183,7 @@ end
 
 # :move_priority
 class Battle::Move
-  alias field_pbPriority pbPriority
+  alias field_pbPriority pbPriority unless method_defined?(:field_pbPriority)
   def pbPriority(user)
     ret = @battle.apply_field_effect(:move_priority, user, self, @priority)
     pri = ret || @priority
@@ -193,7 +193,7 @@ end
 
 # :move_second_type
 class Battle::Move
-  alias field_pbCalcTypeModSingle pbCalcTypeModSingle
+  alias field_pbCalcTypeModSingle pbCalcTypeModSingle unless method_defined?(:field_pbCalcTypeModSingle)
   def pbCalcTypeModSingle(moveType, defType, user, target)
     ret = field_pbCalcTypeModSingle(moveType, defType, user, target)
 
@@ -211,7 +211,7 @@ end
 
 # :nature_power_change
 class Battle::Move::UseMoveDependingOnEnvironment
-  alias field_pbOnStartUse pbOnStartUse
+  alias field_pbOnStartUse pbOnStartUse unless method_defined?(:field_pbOnStartUse)
   def pbOnStartUse(user, targets)
     # NOTE: It's possible in theory to not have the move Nature Power wants to
     #       turn into, but what self-respecting game wouldn't at least have Tri
@@ -264,7 +264,7 @@ end
 
 # :no_recharging
 class Battle::Battler
-  alias field_pbEffectsAfterMove pbEffectsAfterMove
+  alias field_pbEffectsAfterMove pbEffectsAfterMove unless method_defined?(:field_pbEffectsAfterMove)
   def pbEffectsAfterMove(user, targets, move, numHits)
     ret = @battle.apply_field_effect(:no_recharging, user, targets, move, numHits)
     user.effects[PBEffects::HyperBeam] = 0 if ret
@@ -277,7 +277,7 @@ end
 
 # :secret_power_effect
 class Battle::Move::EffectDependsOnEnvironment
-  alias field_pbOnStartUse pbOnStartUse
+  alias field_pbOnStartUse pbOnStartUse unless method_defined?(:field_pbOnStartUse)
   def pbOnStartUse(user, targets)
     # NOTE: This is Gen 7's list plus some of Gen 6 plus a bit of my own.
     @secretPower = 0   # Body Slam, paralysis
@@ -302,7 +302,7 @@ end
 
 # :status_immunity
 class Battle::Battler
-  alias field_pbCanInflictStatus? pbCanInflictStatus?
+  alias field_pbCanInflictStatus? pbCanInflictStatus? unless method_defined?(:field_pbCanInflictStatus?)
   def pbCanInflictStatus?(newStatus, user, showMessages, move = nil, ignoreStatus = false)
     return false if fainted?
     self_inflicted = (user && user.index == @index)   # Rest and Flame Orb/Toxic Orb only
@@ -313,7 +313,7 @@ class Battle::Battler
     return field_pbCanInflictStatus?(newStatus, user, showMessages, move, ignoreStatus)
   end
 
-  alias field_pbCanSynchronizeStatus? pbCanSynchronizeStatus?
+  alias field_pbCanSynchronizeStatus? pbCanSynchronizeStatus? unless method_defined?(:field_pbCanSynchronizeStatus?)
   def pbCanSynchronizeStatus?(newStatus, user)
     return false if fainted?
     # Trying to replace a status problem with another one
@@ -325,7 +325,7 @@ class Battle::Battler
     return field_pbCanSynchronizeStatus?(newStatus, user)
   end
 
-  alias field_pbCanSleepYawn? pbCanSleepYawn?
+  alias field_pbCanSleepYawn? pbCanSleepYawn? unless method_defined?(:field_pbCanSleepYawn?)
   def pbCanSleepYawn?
     return false if self.status != :NONE
 
@@ -335,7 +335,7 @@ class Battle::Battler
     return field_pbCanSleepYawn?
   end
 
-  alias field_pbCanConfuse? pbCanConfuse?
+  alias field_pbCanConfuse? pbCanConfuse? unless method_defined?(:field_pbCanConfuse?)
   def pbCanConfuse?(user = nil, showMessages = true, move = nil, selfInflicted = false)
     return false if fainted?
 
@@ -348,7 +348,7 @@ end
 
 # :switch_in
 class Battle
-  alias field_pbOnBattlerEnteringBattle pbOnBattlerEnteringBattle
+  alias field_pbOnBattlerEnteringBattle pbOnBattlerEnteringBattle unless method_defined?(:field_pbOnBattlerEnteringBattle)
   def pbOnBattlerEnteringBattle(idxBattler, *args)
     # Call original method first with all arguments
     field_pbOnBattlerEnteringBattle(idxBattler, *args)
@@ -366,7 +366,7 @@ end
 
 # :tailwind_duration
 class Battle::Move::StartUserSideDoubleSpeed
-  alias field_pbEffectGeneral pbEffectGeneral
+  alias field_pbEffectGeneral pbEffectGeneral unless method_defined?(:field_pbEffectGeneral)
   def pbEffectGeneral(user)
     user.pbOwnSide.effects[PBEffects::Tailwind] = 4
 
