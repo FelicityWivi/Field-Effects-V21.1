@@ -892,12 +892,6 @@ class Battle::Field
         else
           # Damage
           battler.pbReduceHP(amount, false, true)
-<<<<<<< Updated upstream
-          # Do NOT call battler.pbFaint here. The outer end_of_round_field_process
-          # loop calls pbCheckFaint after this proc returns, which plays the faint
-          # animation AND triggers trainer replacement. Calling pbFaint here would
-          # bypass replacement and cause a double-faint animation.
-=======
           # Display the damage message now that HP has been reduced.
           # Previously this was omitted ("don't show message"), which is why
           # fields like Volcanic showed no EOR damage text.
@@ -906,7 +900,6 @@ class Battle::Field
           end
           # Do NOT call battler.pbFaint here. The outer end_of_round_field_process
           # loop lets PE's own faint sweep handle replacement cleanly in doubles.
->>>>>>> Stashed changes
         end
       end
     }
