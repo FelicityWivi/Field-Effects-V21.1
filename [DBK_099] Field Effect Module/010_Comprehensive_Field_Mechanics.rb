@@ -866,9 +866,8 @@ class Battle::Field
         
         # Apply type effectiveness if it's damage with a type
         if !is_healing && damage_type
-          effectiveness = Effectiveness.calculate(damage_type, 
-                                                  battler.pbTypes[0], 
-                                                  battler.pbTypes[1])
+          battler_types = battler.pbTypes.select { |t| t && GameData::Type.exists?(t) }
+          effectiveness = Effectiveness.calculate(damage_type, *battler_types)
           amount = (amount * effectiveness / Effectiveness::NORMAL_EFFECTIVE).round
           amount = 1 if amount < 1
         end
@@ -2185,10 +2184,14 @@ end
 
 # Liquid Ooze - Doubled damage
 class Battle::Move
-  # under Corrupted Cave the life‑leeching check might be modified later
-  def pbLifeLeechingMove?
-    ret = super
-    return ret
+  # pbLifeLeechingMove? is not defined in vanilla PE v21.1's Battle::Move base
+  # class, so we cannot call super here — it raises NoMethodError on any move
+  # subclass that has no prior definition (e.g. Battle::Move::None).
+  # Default to false; individual drain-move subclasses already return true.
+  unless method_defined?(:pbLifeLeechingMove?)
+    def pbLifeLeechingMove?
+      return false
+    end
   end
 end
 
@@ -2472,6 +2475,7 @@ Battle::AbilityEffects::OnSwitchIn.add(:SCHOOLING_WATERSURFACE,
 
 # Wave Crash - Recoil reduced to 25%
 class Battle::Move::RecoilQuarterOfDamageDealt
+  alias watersurface_pbEffectAfterAllHits pbEffectAfterAllHits unless method_defined?(:watersurface_pbEffectAfterAllHits)
   def pbEffectAfterAllHits(user, target)
     if @battle.has_field? && WATER_SURFACE_IDS.include?(@battle.current_field.id)
       if @id == :WAVECRASH
@@ -2483,7 +2487,7 @@ class Battle::Move::RecoilQuarterOfDamageDealt
         return
       end
     end
-    watersurface_pbEffectAfterAllHits(user, target)
+    respond_to?(:watersurface_pbEffectAfterAllHits) ? watersurface_pbEffectAfterAllHits(user, target) : super
   end
 end
 
@@ -7883,8 +7887,8 @@ class Battle::Move
     respond_to?(:starlight_meteorassault_pbEffectGeneral) ? starlight_meteorassault_pbEffectGeneral(user) : super
     return unless @id == :METEORASSAULT
     return unless @battle.has_field? && STARLIGHT_ARENA_IDS.include?(@battle.current_field.id)
-    # Remove the MustRecharge effect set by base game
-    user.effects[PBEffects::MustRecharge] = false if user.effects.respond_to?(:[]=)
+    # Remove the HyperBeam (recharge) effect set by base game
+    user.effects[PBEffects::HyperBeam] = 0 if user.effects.respond_to?(:[]=)
   rescue
   end
 end
@@ -8477,8 +8481,8 @@ class Battle
       item    = args[1]
       if item == :MAGICALSEED && battler && !battler.fainted?
         # All-stat boost handled by fieldtxt :stats key
-        # Apply MustRecharge
-        battler.effects[PBEffects::MustRecharge] = true if PBEffects.const_defined?(:MustRecharge)
+        # Apply recharge (HyperBeam effect — PE v21.1 uses integer, 1 = must recharge)
+        battler.effects[PBEffects::HyperBeam] = 1
         pbDisplay(_INTL("{1} is recharging after the cosmic surge!", battler.pbThis))
       end
     end
@@ -10208,10 +10212,10 @@ class Battle::Move
   def pbEffectAfterAllHits(user, target)
     respond_to?(:glitch_recharge_pbEffectAfterAllHits) ? glitch_recharge_pbEffectAfterAllHits(user, target) : super
     return unless @battle.has_field? && GLITCH_FIELD_IDS.include?(@battle.current_field.id)
-    return unless user.effects[PBEffects::MustRecharge] rescue false
+    return unless (user.effects[PBEffects::HyperBeam] > 0 rescue false)
     # Clear recharge if any foe just fainted
     foe_fainted = @battle.allOtherBattlers(user.index).any?(&:fainted?)
-    user.effects[PBEffects::MustRecharge] = false if foe_fainted
+    user.effects[PBEffects::HyperBeam] = 0 if foe_fainted
   end
 end
 
@@ -12804,3 +12808,92 @@ class Battle::Battler
   end
 end
 
+
+#===============================================================================
+# SUPER-HEATED FIELD MECHANICS
+# (Field data defined in 005_fieldtxt.rb; parsed automatically by 007)
+#
+# Hardcoded effects not expressible in fieldtxt:
+#   1. Steam generation — certain Water moves lower all active battlers'
+#      Accuracy by 1 stage (semi-invulnerable Pokémon are unaffected).
+#   2. Outrage / Thrash / Petal Dance fatigue after only 1 turn instead of 2–3.
+#   3. EOR — Hail weather is terminated.
+#===============================================================================
+
+SUPERHEATED_IDS = %i[superheated].freeze
+
+SUPERHEATED_STEAM_MOVES = %i[
+  SURF MUDDYWATER WATERPLEDGE WATERSPOUT WATERSPORT
+  SPARKLINGARIA OCEANICOPERETTA HYDROVORTEX HYDROPUMP
+].freeze
+
+SUPERHEATED_THRASH_MOVES = %i[OUTRAGE THRASH PETALDANCE].freeze
+
+# ---------------------------------------------------------------------------
+# Reset the per-move steam flag when the move is first announced, so that
+# in multi-target situations the steam only fires once per move use.
+# ---------------------------------------------------------------------------
+class Battle::Move
+  alias superheated_pbDisplayUseMessage pbDisplayUseMessage if method_defined?(:pbDisplayUseMessage) && !method_defined?(:superheated_pbDisplayUseMessage)
+
+  def pbDisplayUseMessage(user)
+    @superheated_steam_fired = false
+    respond_to?(:superheated_pbDisplayUseMessage) ? superheated_pbDisplayUseMessage(user) : super
+  end
+end
+
+# ---------------------------------------------------------------------------
+# After each hit:
+#   • If the move is a steam-generating Water move, lower every active
+#     non-semi-invulnerable battler's Accuracy by 1 stage.
+#   • If the move is a thrashing move, clamp its Outrage counter to 1 so the
+#     Pokémon fatigues after the very next use.
+# ---------------------------------------------------------------------------
+class Battle::Move
+  alias superheated_pbEffectAfterAllHits pbEffectAfterAllHits if method_defined?(:pbEffectAfterAllHits) && !method_defined?(:superheated_pbEffectAfterAllHits)
+
+  def pbEffectAfterAllHits(user, target)
+    respond_to?(:superheated_pbEffectAfterAllHits) ? superheated_pbEffectAfterAllHits(user, target) : super
+    return unless @battle.has_field? && SUPERHEATED_IDS.include?(@battle.current_field.id)
+
+    # --- Steam: certain Water moves lower all active Pokémon's Accuracy ---
+    if SUPERHEATED_STEAM_MOVES.include?(@id) && !@superheated_steam_fired
+      @superheated_steam_fired = true
+      @battle.pbDisplay(_INTL("Steam shot up from the field!"))
+      @battle.allBattlers.each do |b|
+        next unless b && !b.fainted?
+        # Pokémon in the semi-invulnerable turn of a two-turn move are unaffected
+        next if b.effects[PBEffects::TwoTurnAttack]
+        b.pbLowerStatStage(:ACCURACY, 1, user, false)
+      end
+    end
+
+    # --- Thrashing moves fatigue after 1 turn ---
+    # The Outrage counter is set to 2 or 3 by the move itself on the first use.
+    # Clamping it to 1 here ensures the Pokémon strikes once more next turn
+    # and then immediately fatigues (becomes confused).
+    if SUPERHEATED_THRASH_MOVES.include?(@id)
+      outrage_val = user.effects[PBEffects::Outrage] rescue nil
+      if outrage_val.is_a?(Integer) && outrage_val > 1
+        user.effects[PBEffects::Outrage] = 1
+      end
+    end
+  end
+end
+
+# ---------------------------------------------------------------------------
+# End of round: terminate Hail / Snow weather on the Super-Heated Field.
+# ---------------------------------------------------------------------------
+class Battle
+  alias superheated_eor_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase) && !method_defined?(:superheated_eor_pbEndOfRoundPhase)
+
+  def pbEndOfRoundPhase
+    respond_to?(:superheated_eor_pbEndOfRoundPhase) ? superheated_eor_pbEndOfRoundPhase : super
+    return unless has_field? && SUPERHEATED_IDS.include?(current_field.id)
+
+    if [:Hail, :Snow].include?(pbWeather)
+      pbDisplay(_INTL("The hail melted away!"))
+      pbStartWeather(nil, :None, false) rescue (@field.weather = :None; @field.weatherDuration = 0)
+    end
+  end
+end

@@ -541,11 +541,12 @@ FIELDEFFECTS = {
 	:moveEffects => {},
 	:typeBoosts => {
 		1.5 => [:FIRE],
+		0.5 => [:WATER],
 		0.5 => [:GRASS, :ICE],
 	},
 	:typeMessages => {
 		"The blaze amplified the attack!" => [:FIRE],
-		"The blaze softened the attack..." => [:GRASS, :ICE],
+		"The blaze softened the attack..." => [:WATER, :GRASS, :ICE],
 	},
 	:typeCondition => {
 		:FIRE => "!attacker.isAirborne?",
@@ -1251,6 +1252,54 @@ FIELDEFFECTS = {
 		:effect => :ShellTrap,
 		:duration => true,
 		:message => "{1} primed a trap!",
+		:animation => :SHELLTRAP,
+		:stats => {
+			:DEFENSE => 1,
+		},
+	},
+},
+:SUPERHEATED => {
+	:name => "Super-Heated Field",
+	:fieldMessage => [
+		"The room is super-heated!"
+	],
+	:graphic => ["Superheated"],
+	:secretPower => "FLAMETHROWER",   # 10 = Burn
+	:naturePower => :ERUPTION,
+	:mimicry => :FIRE,
+	:blockedStatuses => [:FROZEN],
+	:damageMods => {},
+	:accuracyMods => {},
+	:moveMessages => {},
+	:typeMods => {},
+	:typeAddOns => {
+		:FIRE => [:ROCK],
+	},
+	:moveEffects => {},
+	:typeBoosts => {
+		1.1 => [:FIRE],
+		0.9 => [:WATER],
+		0.5 => [:ICE],
+	},
+	:typeMessages => {
+		"The field super-heated the attack!" => [:FIRE],
+		"The extreme heat softened the attack..." => [:WATER, :ICE],
+	},
+	:typeCondition => {
+		:WATER => "move.id != :SCALD && move.id != :STEAMERUPTION",
+	},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :TELLURICSEED,
+		:effect   => :ShellTrap,
+		:duration => true,   # ShellTrap persists until triggered
+		:message  => "{1} primed a Shell Trap!",
 		:animation => :SHELLTRAP,
 		:stats => {
 			:DEFENSE => 1,

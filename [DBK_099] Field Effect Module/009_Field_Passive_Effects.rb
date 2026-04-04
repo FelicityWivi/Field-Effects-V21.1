@@ -25,16 +25,18 @@ class Battle
       damage_amount = field_passive_damage_amount(battler)
       next unless damage_amount && damage_amount > 0
 
-      # Apply the damage
-      battler.pbTakeEffectDamage(damage_amount, false)
+      # Apply the damage and update the HP bar.
+      battler.pbReduceHP(damage_amount, false, false)
 
       # Display message
       message = field_passive_damage_message(battler)
       pbDisplay(message) if message
-      # HP may now be 0; PE's own EOR faint sweep (pbSwitchInBetweenTurns)
-      # handles replacement. Do NOT call pbCheckFaint here — it fires before
-      # PE's replacement flow and causes the double-battle partner AI to queue
-      # a Pokémon that has already fainted.
+
+      # Trigger faint animation + "X fainted!" text if HP reached 0.
+      # PE's pbEndOfRoundPhase skips battlers already at fainted? (hp <= 0),
+      # so we must handle it here — same pattern as cave collapse and other EOR damage.
+      # Replacement is still handled by pbSwitchInBetweenTurns after the full EOR phase.
+      battler.pbFaint if battler.fainted?
     end
   end
   
