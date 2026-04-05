@@ -443,31 +443,27 @@ Battle::AbilityEffects::DamageCalcFromUser.copy(:ROCKYPAYLOAD,
   }
 )
 
-Battle::AbilityEffects::DamageCalcFromUser.copy(:GALVANIZE,
+Battle::AbilityEffects::DamageCalcFromUser.add(:AERILATE,
   proc { |ability, user, target, move, mults, power, type|
-    next if type != :ELECTRIC || move.function_code == "TypeDependsOnUserIVs"
-    mults[:power_multiplier] *= move.field_ability_multiplier(user, :GALVANIZE, 1.2)
+    mults[:power_multiplier] *= move.field_ability_multiplier(user, :AERILATE, 1.2) if move.powerBoost
   }
 )
 
-Battle::AbilityEffects::DamageCalcFromUser.copy(:PIXILATE,
+Battle::AbilityEffects::DamageCalcFromUser.add(:GALVANIZE,
   proc { |ability, user, target, move, mults, power, type|
-    next if type != :FAIRY || move.function_code == "TypeDependsOnUserIVs"
-    mults[:power_multiplier] *= move.field_ability_multiplier(user, :PIXILATE, 1.2)
+    mults[:power_multiplier] *= move.field_ability_multiplier(user, :GALVANIZE, 1.2) if move.powerBoost
   }
 )
 
-Battle::AbilityEffects::DamageCalcFromUser.copy(:AERILATE,
+Battle::AbilityEffects::DamageCalcFromUser.add(:PIXILATE,
   proc { |ability, user, target, move, mults, power, type|
-    next if type != :FLYING || move.function_code == "TypeDependsOnUserIVs"
-    mults[:power_multiplier] *= move.field_ability_multiplier(user, :AERILATE, 1.2)
+    mults[:power_multiplier] *= move.field_ability_multiplier(user, :PIXILATE, 1.2) if move.powerBoost
   }
 )
 
-Battle::AbilityEffects::DamageCalcFromUser.copy(:REFRIGERATE,
+Battle::AbilityEffects::DamageCalcFromUser.add(:REFRIGERATE,
   proc { |ability, user, target, move, mults, power, type|
-    next if type != :ICE || move.function_code == "TypeDependsOnUserIVs"
-    mults[:power_multiplier] *= move.field_ability_multiplier(user, :REFRIGERATE, 1.2)
+    mults[:power_multiplier] *= move.field_ability_multiplier(user, :REFRIGERATE, 1.2) if move.powerBoost
   }
 )
 
@@ -595,7 +591,10 @@ class Battle::Battler
   alias blocked_status_pbCanInflictStatus? pbCanInflictStatus? if method_defined?(:pbCanInflictStatus?) && !method_defined?(:blocked_status_pbCanInflictStatus?)
 
   def pbCanInflictStatus?(newStatus, user, showMessages, move = nil, ignoreStatus = false)
-    # Check if field blocks this status via blockedStatuses list
+    # Check if field blocks this status via blockedStatuses list.
+    # Note: :CONFUSED is not a valid PE21.1 status symbol — confusion is a volatile
+    # condition tracked via effects[PBEffects::Confusion], not the status field.
+    # Fields that want to block confusion should hook pbCanConfuse? instead.
     if @battle.has_field? && @battle.current_field.respond_to?(:blocked_statuses)
       blocked = @battle.current_field.blocked_statuses
       if blocked && blocked.include?(newStatus)
@@ -604,8 +603,6 @@ class Battle::Battler
           case newStatus
           when :FROZEN
             @battle.pbDisplay(_INTL("The {1} prevents freezing!", field_name))
-          when :CONFUSED
-            @battle.pbDisplay(_INTL("The {1} keeps minds clear!", field_name))
           when :SLEEP
             @battle.pbDisplay(_INTL("The {1} prevents sleep!", field_name))
           when :BURN
@@ -802,8 +799,9 @@ class Battle::Field
   def register_ability_activation
     return unless @ability_activated && @ability_activated.any?
     
-    # Populate the @ability_activation array used by existing ability checks
-    # This makes apply_field_effect(:ability_activation) return these abilities
+    # @ability_activation is the array used by apply_field_effect(:ability_activation).
+    # Populate it from @ability_activated keys so ability-immunity checks work.
+    @ability_activation ||= []
     @ability_activated.each_key do |ability|
       @ability_activation << ability unless @ability_activation.include?(ability)
     end
@@ -812,11 +810,12 @@ class Battle::Field
       Console.echo_li("[ABILITY ACTIVATE] #{@name} activates: #{@ability_activation.inspect}")
     end
     
-    # Register EOR handlers for abilities that need special end-of-turn effects
-    eor_abilities = @ability_activated.select { |ability, config| config[:eor] }
+    # Register EOR handlers for abilities that need special end-of-turn effects.
+    # Chain onto any existing EOR_field_battler proc rather than overwriting it.
+    eor_abilities = @ability_activated.select { |_ability, config| config[:eor] }
     return unless eor_abilities.any?
     
-    existing_eor = @effects[:EOR_field_battler] || proc { |battler| }
+    existing_eor = @effects[:EOR_field_battler] || proc { |_battler| }
     
     @effects[:EOR_field_battler] = proc { |battler|
       existing_eor.call(battler)
@@ -848,7 +847,10 @@ class Battle::Field
   def register_health_changes
     return unless @health_changes && @health_changes.any?
     
+    existing_eor = @effects[:EOR_field_battler] || proc { |_battler| }
+
     @effects[:EOR_field_battler] = proc { |battler|
+      existing_eor.call(battler)
       next if battler.fainted?
       
       @health_changes.each do |config|
@@ -889,16 +891,16 @@ class Battle::Field
             @battle.pbDisplay(message.gsub("{1}", battler.pbThis).gsub("{2}", @name))
           end
         else
-          # Damage
+          # Damage — flash the HP bar, reduce HP, display message, then run
+          # item/ability/faint checks. Matches PE21.1's pbEORWeatherDamage pattern.
+          @battle.scene.pbDamageAnimation(battler)
           battler.pbReduceHP(amount, false, true)
-          # Display the damage message now that HP has been reduced.
-          # Previously this was omitted ("don't show message"), which is why
-          # fields like Volcanic showed no EOR damage text.
           if message
             @battle.pbDisplay(message.gsub("{1}", battler.pbThis).gsub("{2}", @name))
           end
-          # Do NOT call battler.pbFaint here. The outer end_of_round_field_process
-          # loop lets PE's own faint sweep handle replacement cleanly in doubles.
+          battler.pbItemHPHealCheck
+          battler.pbAbilitiesOnDamageTaken
+          battler.pbFaint if battler.fainted?
         end
       end
     }
@@ -10646,9 +10648,9 @@ class Battle::Battler
   alias colosseum_defcomp_pbLowerStatStage pbLowerStatStage if method_defined?(:pbLowerStatStage) && !method_defined?(:colosseum_defcomp_pbLowerStatStage)
 
   def pbLowerStatStage(stat, amount, user, showAnim = true, ignoreContrary = false,
-                       ignoreMirrorArmor = false)
+                       mirrorArmorSplash = 0, ignoreMirrorArmor = false)
     result = respond_to?(:colosseum_defcomp_pbLowerStatStage) ?
-      respond_to?(:colosseum_defcomp_pbLowerStatStage) ? colosseum_defcomp_pbLowerStatStage(stat, amount, user, showAnim, ignoreContrary, ignoreMirrorArmor) : super :
+      respond_to?(:colosseum_defcomp_pbLowerStatStage) ? colosseum_defcomp_pbLowerStatStage(stat, amount, user, showAnim, ignoreContrary, mirrorArmorSplash, ignoreMirrorArmor) : super :
       super
     return result unless result  # stat wasn't actually lowered
 

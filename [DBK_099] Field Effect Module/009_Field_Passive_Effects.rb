@@ -26,16 +26,19 @@ class Battle
       next unless damage_amount && damage_amount > 0
 
       # Apply the damage and update the HP bar.
-      battler.pbReduceHP(damage_amount, false, false)
+      # Play the damage flash animation first (matching PE21.1's pbEORWeatherDamage),
+      # then reduce HP with anim=false since the animation already ran.
+      @scene.pbDamageAnimation(battler)
+      battler.pbReduceHP(damage_amount, false)
 
       # Display message
       message = field_passive_damage_message(battler)
       pbDisplay(message) if message
 
-      # Trigger faint animation + "X fainted!" text if HP reached 0.
-      # PE's pbEndOfRoundPhase skips battlers already at fainted? (hp <= 0),
-      # so we must handle it here — same pattern as cave collapse and other EOR damage.
-      # Replacement is still handled by pbSwitchInBetweenTurns after the full EOR phase.
+      # Item heal check (Sitrus Berry etc.), ability on-damage check
+      # (Emergency Exit / Wimp Out), then faint — matching PE21.1's EOR pattern.
+      battler.pbItemHPHealCheck
+      battler.pbAbilitiesOnDamageTaken
       battler.pbFaint if battler.fainted?
     end
   end
@@ -78,7 +81,7 @@ class Battle
     when :volcanic, :superheated, :volcanictop, :infernal
       return _INTL("{1} was hurt by the scorching heat!", battler.pbThis)
     when :dragonsden
-      return _INTL("{1} was hurt by the draconic energy!", battler.pbThis) if pbWeather != :SUNNYDAY
+      return _INTL("{1} was hurt by the draconic energy!", battler.pbThis) unless [:Sun, :HarshSun].include?(pbWeather)
     when :underwater
       return _INTL("{1} struggled to breathe!", battler.pbThis)
     when :murkwatersurface
@@ -141,9 +144,9 @@ class Battle::Battler
   def underwater_field_passive_damage?
     return false if pbHasType?(:WATER)
     return false if hasActiveAbility?([:SWIFTSWIM, :MAGICGUARD])
-    # Check water effectiveness
+    # Check water effectiveness using the field system's preferred method API
     effectiveness = Effectiveness.calculate(:WATER, *pbTypes(true))
-    return false if effectiveness <= Effectiveness::NOT_VERY_EFFECTIVE_ONE
+    return false if Effectiveness.not_very_effective?(effectiveness) || Effectiveness.ineffective?(effectiveness)
     return true
   end
   
@@ -182,7 +185,7 @@ class Battle::Battler
   
   # Dragon's Den passive damage check
   def dragons_den_passive_damage?
-    return false if @battle.pbWeather == :SUNNYDAY
+    return false if [:Sun, :HarshSun].include?(@battle.pbWeather)
     return false if pbHasType?(:DRAGON)
     return false if hasActiveAbility?(:MAGICGUARD)
     return true
@@ -341,108 +344,6 @@ class Battle
 end
 
 #===============================================================================
-# Pledge Move System
-# Handles Grass Pledge + Fire Pledge = Sea of Fire, etc.
-#===============================================================================
-class Battle
-  attr_accessor :pledge_moves_used
-  
-  # Initialize pledge tracking
-  alias field_pledge_initialize initialize unless method_defined?(:field_pledge_initialize)
-  def initialize(*args)
-    field_pledge_initialize(*args)
-    @pledge_moves_used = {}
-  end
-  
-  # Check if a pledge move was used this turn
-  def pledge_move_used?(move_id)
-    return @pledge_moves_used[move_id] == true
-  end
-  
-  # Register pledge move usage
-  def register_pledge_move(move_id)
-    @pledge_moves_used[move_id] = true
-  end
-  
-  # Clear pledge moves (at end of round)
-  def clear_pledge_moves
-    @pledge_moves_used.clear
-  end
-  
-  # Check for pledge combo
-  def check_pledge_combo(move_id)
-    case move_id
-    when :FIREPLEDGE
-      if pledge_move_used?(:GRASSPLEDGE)
-        return :sea_of_fire
-      elsif pledge_move_used?(:WATERPLEDGE)
-        return :rainbow
-      end
-    when :WATERPLEDGE
-      if pledge_move_used?(:FIREPLEDGE)
-        return :rainbow
-      elsif pledge_move_used?(:GRASSPLEDGE)
-        return :swamp
-      end
-    when :GRASSPLEDGE
-      if pledge_move_used?(:WATERPLEDGE)
-        return :swamp
-      elsif pledge_move_used?(:FIREPLEDGE)
-        return :sea_of_fire
-      end
-    end
-    
-    return nil
-  end
-  
-  # Apply pledge combo effect
-  def apply_pledge_combo(combo_type, side)
-    case combo_type
-    when :sea_of_fire
-      pbDisplay(_INTL("A sea of fire enveloped {1}!", side.opposes?(0) ? "the opposing team" : "your team"))
-      side.effects[PBEffects::SeaOfFire] = 4
-      
-    when :rainbow
-      pbDisplay(_INTL("A rainbow appeared in the sky on {1}'s side!", side.opposes?(0) ? "the opposing team" : "your team"))
-      side.effects[PBEffects::Rainbow] = 4
-      
-    when :swamp
-      pbDisplay(_INTL("A swamp enveloped {1}!", side.opposes?(0) ? "the opposing team" : "your team"))
-      side.effects[PBEffects::Swamp] = 4
-    end
-  end
-end
-
-# Integrate pledge moves
-Battle::Move.class_eval do
-  alias field_pledge_pbEffectGeneral pbEffectGeneral unless method_defined?(:field_pledge_pbEffectGeneral)
-  
-  def pbEffectGeneral(user)
-    # Check for pledge moves
-    if [:FIREPLEDGE, :WATERPLEDGE, :GRASSPLEDGE].include?(@id)
-      combo = @battle.check_pledge_combo(@id)
-      if combo
-        @battle.apply_pledge_combo(combo, user.pbOwnSide)
-      end
-      @battle.register_pledge_move(@id)
-    end
-    
-    # Call original method
-    field_pledge_pbEffectGeneral(user)
-  end
-end
-
-# Clear pledge moves at end of round
-Battle.class_eval do
-  alias field_pledge_pbEndOfRoundPhase pbEndOfRoundPhase unless method_defined?(:field_pledge_pbEndOfRoundPhase)
-  
-  def pbEndOfRoundPhase
-    field_pledge_pbEndOfRoundPhase
-    clear_pledge_moves
-  end
-end
-
-#===============================================================================
 # Weather Blocking for Specific Fields
 #===============================================================================
 class Battle
@@ -461,19 +362,19 @@ class Battle
       
     when :dimensional
       # Dimensional field blocks non-shadow weather
-      return ![:SHADOWSKY, :STRONGWINDS].include?(weather_type)
+      return ![:ShadowSky, :StrongWinds].include?(weather_type)
       
-    when :superheated, :volcanic, :volcanictop, :infernal
+    when :superheated, :volcanic, :volcanictop
       # Hot fields block hail
       return weather_type == :Hail
       
     when :infernal
-      # Infernal also blocks rain
-      return [:Hail, :RAINDANCE].include?(weather_type)
+      # Infernal blocks both hail and rain
+      return [:Hail, :Rain, :HeavyRain].include?(weather_type)
       
     when :cave, :cave1, :cave2, :cave3, :cave4
       # Caves block some weather
-      return [:SUNNYDAY].include?(weather_type)
+      return [:Sun, :HarshSun].include?(weather_type)
     end
     
     return false
@@ -488,19 +389,20 @@ class Battle
       return _INTL("You're too deep to notice the weather!")
     when :dimensional
       case weather_type
-      when :SUNNYDAY
+      when :Sun, :HarshSun
         return _INTL("The sunlight cannot pierce the darkness!")
-      when :RAINDANCE
+      when :Rain, :HeavyRain
         return _INTL("The dark dimension swallowed the rain!")
-      when :SANDSTORM
+      when :Sandstorm
         return _INTL("The dark dimension swallowed the sand!")
-      when :HAIL
+      when :Hail
         return _INTL("The dark dimension swallowed the hail!")
       end
-    when :superheated, :volcanic, :volcanictop, :infernal, :dragonsden
+    when :superheated, :volcanic, :volcanictop, :dragonsden
       return _INTL("The hail melted away!")
     when :infernal
-      return _INTL("The rain evaporated!") if weather_type == :RAINDANCE
+      return _INTL("The rain evaporated!") if [:Rain, :HeavyRain].include?(weather_type)
+      return _INTL("The hail melted away!")
     end
     
     return _INTL("The field prevented the weather!")
