@@ -60,16 +60,10 @@ class Battle
     when :corrosive, :corrosivemist
       # 1/16 HP damage
       return (battler.totalhp / 16.0).round
-    when :desert
-      # 1/16 HP damage in sandstorm
-      if pbWeather == :Sandstorm
-        return (battler.totalhp / 16.0).round
-      end
-    when :icy, :snowymountain
-      # 1/16 HP damage in hail
-      if pbWeather == :Hail
-        return (battler.totalhp / 16.0).round
-      end
+    # NOTE: :desert sandstorm damage is handled entirely by the Desert Field EOR
+    # block in 010_Comprehensive_Field_Mechanics.rb at the correct 1/8 HP rate.
+    # NOTE: :icy / :snowymountain hail damage is handled by core pbEORWeatherDamage
+    # at the correct 1/16 HP rate.  Do not add them here.
     end
     
     return nil
@@ -88,10 +82,8 @@ class Battle
       return _INTL("{1} was poisoned by the murky water!", battler.pbThis)
     when :corrosive, :corrosivemist
       return _INTL("{1} was hurt by the corrosion!", battler.pbThis)
-    when :desert
-      return _INTL("{1} was buffeted by the sand!", battler.pbThis) if pbWeather == :Sandstorm
-    when :icy, :snowymountain
-      return _INTL("{1} was buffeted by the hail!", battler.pbThis) if pbWeather == :Hail
+    # NOTE: :desert and :icy/:snowymountain messages are shown by their
+    # respective handlers (010 EOR block and core pbEORWeatherDamage).
     end
     
     return _INTL("{1} was hurt by the field!", battler.pbThis)
@@ -115,13 +107,17 @@ class Battle::Battler
       return murky_water_surface_passive_damage?
     when :corrosive, :corrosivemist
       return corrosive_field_passive_damage?
-    when :desert
-      return desert_field_passive_damage?
-    when :icy, :snowymountain
-      return icy_field_passive_damage?
     when :dragonsden
       return dragons_den_passive_damage?
     end
+    # NOTE: :desert sandstorm damage is handled entirely by the Desert Field EOR
+    # block in 010_Comprehensive_Field_Mechanics.rb at the correct 1/8 HP rate
+    # with a single message.  Do NOT add it here — doing so caused a double-hit
+    # (two "buffeted" messages, three separate 1/16 damage applications).
+    #
+    # NOTE: :icy / :snowymountain hail damage is handled by the core PE
+    # pbEORWeatherDamage at the correct 1/16 rate.  Do NOT add it here — doing
+    # so caused a second 1/16 hit with a second "buffeted" message.
     
     return false
   end
@@ -162,24 +158,6 @@ class Battle::Battler
   def corrosive_field_passive_damage?
     return false if pbHasType?(:STEEL) || pbHasType?(:POISON)
     return false if hasActiveAbility?([:POISONHEAL, :MAGICGUARD, :IMMUNITY, :PASTELVEIL])
-    return true
-  end
-  
-  # Desert field passive damage check
-  def desert_field_passive_damage?
-    return false unless @battle.pbWeather == :Sandstorm
-    return false if pbHasType?(:GROUND) || pbHasType?(:ROCK) || pbHasType?(:STEEL)
-    return false if hasActiveAbility?([:SANDVEIL, :SANDRUSH, :SANDFORCE, :MAGICGUARD, :OVERCOAT])
-    return false if hasActiveItem?(:SAFETYGOGGLES)
-    return true
-  end
-  
-  # Icy field passive damage check
-  def icy_field_passive_damage?
-    return false unless @battle.pbWeather == :Hail
-    return false if pbHasType?(:ICE)
-    return false if hasActiveAbility?([:ICEBODY, :SNOWCLOAK, :MAGICGUARD, :OVERCOAT])
-    return false if hasActiveItem?(:SAFETYGOGGLES)
     return true
   end
   
@@ -431,4 +409,30 @@ end
 # in 001_Battle.rb, which runs before PE's own pbEndOfRoundPhase. This ensures
 # passive field damage faints are caught by PE's natural faint sweep rather than
 # being handled after PE's replacement flow has already completed.
+#===============================================================================
+
+#===============================================================================
+# MAGIC FIELD — Passive Effects Note
+#
+# The Magic Field has NO end-of-round passive damage, so no additional
+# damage-handler code is required in this file.
+#
+# All Magic Field passive mechanics are handled elsewhere:
+#
+#   • Ability stat boosts on switch-in (Magician/Anticipation/Forewarn/
+#     Mind's Eye → +1 SpAtk; Magic Bounce/Magic Guard → +1 SpDef)
+#     → Registered via :abilityStatBoosts in 005_fieldtxt.rb and processed
+#       by the existing abilityStatBoosts handler in 007/010.
+#
+#   • Pure Power / Huge Power → Sp. Atk instead of Atk
+#   • Power Spot              → 1.5× ally damage
+#   • Telepathy               → Speed × 2
+#   • Zen Mode                → always active
+#     → All hardcoded in 010_Comprehensive_Field_Mechanics.rb
+#       under the MAGIC_FIELD_IDS block.
+#
+#   • Camouflage   → Psychic   (handled by :mimicry      => :PSYCHIC in 005)
+#   • Nature Power → Psychic   (handled by :naturePower  => :PSYCHIC in 005)
+#   • Secret Power → Confuse   (overridden in 010 via SecretPower#pbAdditionalEffect)
+#   • Terrain Pulse → Psychic  (handled by :mimicry      => :PSYCHIC in 005)
 #===============================================================================

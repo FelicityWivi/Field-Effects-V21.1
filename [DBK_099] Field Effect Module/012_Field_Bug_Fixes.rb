@@ -354,22 +354,23 @@ Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE,
   proc { |ability, user, target, move, battle|
     next if target.fainted? || target.effects[PBEffects::Transform]
     next unless target.isSpecies?(:CRAMORANT)
-    next unless [:SURF, :DIVE].include?(move.id)
-    next unless target.form == 0  # Only change form when in base form.
     if battle.has_field?
       field_id = battle.current_field.id
-      # Water Surface — Arrokuda (form 2).
+      # Water Surface — ANY hit on Cramorant catches an Arrokuda (form 2).
+      # Original line 2372 had no move-type restriction.
       if WATER_SURFACE_IDS.include?(field_id)
         target.pbChangeForm(2, _INTL("{1} caught an Arrokuda!", target.pbThis))
         next
       end
-      # Electric Terrain — Pikachu (form 2).
+      # Electric Terrain — only a Surf or Dive hit catches a Pikachu (form 2).
       if ELECTRIC_TERRAIN_IDS.include?(field_id)
+        next unless [:SURF, :DIVE].include?(move.id)
         target.pbChangeForm(2, _INTL("{1} caught a Pikachu!", target.pbThis))
         next
       end
     end
-    # Normal behavior — form based on remaining HP.
+    # Default — only a Surf or Dive hit triggers form change, HP-based.
+    next unless [:SURF, :DIVE].include?(move.id)
     new_form = (target.hp > target.totalhp / 2) ? 1 : 2
     target.pbChangeForm(new_form, _INTL("{1} caught something!", target.pbThis))
   }
@@ -379,3 +380,96 @@ Battle::AbilityEffects::OnBeingHit.add(:GULPMISSILE,
 # Sanity log
 #-------------------------------------------------------------------------------
 Console.echo_li("[Field Effects] 012_Field_Bug_Fixes loaded — 13 bugs patched.") rescue nil
+
+#-------------------------------------------------------------------------------
+# BUG 4 — Forest Field Sticky Web false-positive flag
+#
+# Root cause: the pbOwnSide override at line 3900 of 010 sets
+#   @forest_sticky_web_boost = true
+# every time pbOwnSide is called while Forest Field is active and Sticky Web
+# is on the battler's side.  pbOwnSide is NOT called only on switch-in — it is
+# called during EVERY damage calculation (Reflect, Aurora Veil, Rainbow, Light
+# Screen checks etc.) and throughout the priority ordering pass.
+#
+# Additionally, the guard `!@effects[PBEffects::StickyWeb]` is always true
+# because StickyWeb lives exclusively on Battle::ActiveField (the side object),
+# not on battler @effects.  There is no battler-level StickyWeb effect in
+# Essentials v21.1 — its index (817) is never initialised in pbInitEffects.
+# So the flag is set on every pbOwnSide call, then silently consumed by the
+# very next pbLowerStatStage(:SPEED) — which may be an unrelated speed drop
+# from Scary Face, Icy Wind, or any stat-lowering move — giving an incorrect
+# extra −1 Speed stage.
+#
+# Fix in three parts:
+#   A. Redefine pbOwnSide — remove the flag-setting logic entirely.
+#   B. Redefine pbLowerStatStage for the forest case — remove the flag-
+#      consumption, keeping only the clean pass-through to the chain.
+#   C. Add a proper pbOnBattlerEnteringBattle hook that fires AFTER base PE's
+#      hazard code (so Sticky Web's base −1 has already been applied) and
+#      applies a second −1 Speed stage, achieving the intended −2 total.
+#
+# All three parts together replace the broken approach without changing any
+# intended game behaviour.
+#-------------------------------------------------------------------------------
+
+# ── Part A: Restore pbOwnSide ────────────────────────────────────────────────
+# Redefines pbOwnSide to simply delegate to the alias (the original base PE
+# method) without touching @forest_sticky_web_boost.
+class Battle::Battler
+  def pbOwnSide
+    respond_to?(:forest_pbOwnSide) ? forest_pbOwnSide : super
+  end
+end
+
+# ── Part B: Restore forest pbLowerStatStage ──────────────────────────────────
+# The forest override consumed @forest_sticky_web_boost on any Speed drop.
+# We redefine it to simply chain through — the colosseum override (which wraps
+# this in the alias chain) is unaffected because it uses its own alias name.
+class Battle::Battler
+  def pbLowerStatStage(stat, increment, user, showAnim = true, ignoreContrary = false,
+                       mirrorArmorSplash = 0, ignoreMirrorArmor = false)
+    respond_to?(:forest_pbLowerStatStage) ?
+      forest_pbLowerStatStage(stat, increment, user, showAnim, ignoreContrary,
+                              mirrorArmorSplash, ignoreMirrorArmor) :
+      super
+  end
+end
+
+# ── Part C: Proper switch-in hook ────────────────────────────────────────────
+# Hooks into pbOnBattlerEnteringBattle AFTER the base PE hazard pass (which
+# already applied Sticky Web's −1 Speed).  On Forest Field we apply a second
+# −1, giving −2 total as intended by the field design.
+#
+# Mirrors base PE's Sticky Web guards exactly:
+#   - Field is Forest
+#   - Battler is alive, grounded, not holding Heavy-Duty Boots
+#   - Sticky Web is on the battler's own side
+#   - The battler can still have its Speed lowered (stage not already at min)
+class Battle
+  alias field_fix_forest_sticky_pbOnBattlerEnteringBattle pbOnBattlerEnteringBattle \
+    unless method_defined?(:field_fix_forest_sticky_pbOnBattlerEnteringBattle)
+
+  def pbOnBattlerEnteringBattle(idxBattler, *args)
+    # Run the full existing chain first (base PE hazards fire inside here,
+    # so Sticky Web's base −1 has been applied by the time we return).
+    field_fix_forest_sticky_pbOnBattlerEnteringBattle(idxBattler, *args)
+
+    return unless has_field? && FOREST_FIELD_IDS.include?(current_field.id)
+
+    indices = idxBattler.is_a?(Array) ? idxBattler : [idxBattler]
+    indices.each do |idx|
+      battler = @battlers[idx]
+      next if !battler || battler.fainted?
+      next if battler.airborne?
+      next if battler.hasActiveItem?(:HEAVYDUTYBOOTS)
+      next unless battler.pbOwnSide.effects[PBEffects::StickyWeb]
+      next unless battler.pbCanLowerStatStage?(:SPEED)
+      # Apply the extra −1 Speed that doubles Sticky Web on Forest Field.
+      pbDisplay(_INTL("The sticky web dragged {1} further down!", battler.pbThis))
+      battler.pbLowerStatStage(:SPEED, 1, nil)
+      battler.pbItemStatRestoreCheck
+    end
+  end
+end
+
+Console.echo_li("[Field Effects] 012_Field_Bug_Fixes: Bug 4 (Forest Sticky Web) patched.") rescue nil

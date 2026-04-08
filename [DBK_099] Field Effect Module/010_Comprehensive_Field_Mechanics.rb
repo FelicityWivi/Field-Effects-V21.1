@@ -1865,30 +1865,93 @@ class Battle::Move
   end
 end
 
-# Sandstorm: 1/8 damage (add extra 1/16)
-# Sunny Day: Grass/Water take 1/8 damage EOR (unless Solar Power/Chlorophyll)
-# Grass/Water healed by Water moves in Sunny Day
+# Sandstorm: 1/8 damage in a single hit (Field Effect Manual: "Sandstorm deals
+# 1/8 Max HP damage per turn (from 1/16)").
+#
+# Strategy: override Battle#pbEORWeatherDamage so Desert Field sandstorm damage
+# runs at the correct point in the EOR pipeline — inside pbEOREndWeather, which
+# fires BEFORE pbEORSwitch. This fixes two bugs:
+#
+#   Bug 1 (Struggle / no-target): the post-chain EOR alias ran after pbEORSwitch
+#          had already completed, so calling pbFaint there triggered a phantom
+#          action on the opposing side.
+#   Bug 2 (newly sent-out Pokémon hit): pbEORSwitch sent out the replacement
+#          before the post-chain sandstorm block ran, so the new Pokémon was
+#          iterated and took damage in the same turn it was sent out.
+#
+# Using pbEORWeatherDamage ensures the priority list is the pre-switch snapshot,
+# PE's own faint/item/ability logic applies, and no post-switch battlers are hit.
+#
+# Both Desert Field (sandstorm 1/8) and Dimensional Field (shadow sky 1/8) are
+# handled in ONE override so only a single pbEORWeatherDamage definition exists
+# in this file. The Dimensional Field section is defined later in the file;
+# splitting across two class reopens would cause the second def to silently
+# overwrite the first. Combining them here keeps the alias chain clean.
+class Battle
+  alias field_base_pbEORWeatherDamage pbEORWeatherDamage unless method_defined?(:field_base_pbEORWeatherDamage)
+  def pbEORWeatherDamage(battler)
+    # ── Desert Field: sandstorm → 1/8 HP ──────────────────────────────────────
+    # Immunity checks mirror takesSandstormDamage? exactly.
+    if battler.effectiveWeather == :Sandstorm &&
+       has_field? && DESERT_FIELD_IDS.include?(current_field.id)
+      return if battler.fainted?
+      return unless battler.takesIndirectDamage?
+      return if battler.pbHasType?(:GROUND) || battler.pbHasType?(:ROCK) || battler.pbHasType?(:STEEL)
+      return if battler.inTwoTurnAttack?("TwoTurnAttackInvulnerableUnderground",
+                                         "TwoTurnAttackInvulnerableUnderwater")
+      return if battler.hasActiveAbility?([:OVERCOAT, :SANDFORCE, :SANDRUSH, :SANDVEIL])
+      return if battler.hasActiveItem?(:SAFETYGOGGLES)
+      amt = (battler.totalhp / 8.0).round
+      return unless amt > 0
+      pbDisplay(_INTL("{1} is buffeted by the sandstorm!", battler.pbThis))
+      @scene.pbDamageAnimation(battler)
+      battler.pbReduceHP(amt, false)
+      battler.pbItemHPHealCheck
+      battler.pbFaint if battler.fainted?
+      return
+    end
+    # ── Dimensional Field: shadow sky → 1/8 HP, Dark/Ghost immune ─────────────
+    if battler.effectiveWeather == :ShadowSky &&
+       has_field? && defined?(DIMENSIONAL_FIELD_IDS) && DIMENSIONAL_FIELD_IDS.include?(current_field.id)
+      return if battler.fainted?
+      return unless battler.takesIndirectDamage?
+      return if battler.shadowPokemon?
+      return if battler.pbHasType?(:DARK) || battler.pbHasType?(:GHOST)
+      return if battler.hasActiveAbility?([:OVERCOAT, :MAGICGUARD])
+      amt = (battler.totalhp / 8.0).round
+      return unless amt > 0
+      pbDisplay(_INTL("{1} is hurt by the shadow sky!", battler.pbThis))
+      @scene.pbDamageAnimation(battler)
+      battler.pbReduceHP(amt, false)
+      battler.pbItemHPHealCheck
+      battler.pbFaint if battler.fainted?
+      return
+    end
+    field_base_pbEORWeatherDamage(battler)
+  end
+end
+
+# Sunny Day: Grass/Water take 1/8 damage EOR (unless Solar Power/Chlorophyll).
+# This intentionally runs in the post-chain EOR alias (after pbEORSwitch) so
+# only Pokémon that were present during the turn are affected.
+# NOTE: pbFaint and pbAbilitiesOnDamageTaken are intentionally NOT called here —
+# at this point in the chain pbEORSwitch has already run, so a mid-chain faint
+# would leave a vacant slot until the next turn's start. PE's end-of-round
+# judge checkpoint handles any resulting faint correctly.
 class Battle
   alias desert_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase) && !method_defined?(:desert_pbEndOfRoundPhase)
   def pbEndOfRoundPhase
     respond_to?(:desert_pbEndOfRoundPhase) ? desert_pbEndOfRoundPhase : super
     return unless has_field? && DESERT_FIELD_IDS.include?(current_field.id)
+    return unless [:Sun, :HarshSun].include?(pbWeather)
     allBattlers.each do |b|
       next if b.fainted?
-      # Sandstorm extra damage
-      if [:Sandstorm].include?(field.weather) && !b.pbHasType?(:GROUND, :ROCK, :STEEL)
-        extra_dmg = b.totalhp / 16
-        b.pbReduceHP(extra_dmg, false) if extra_dmg > 0
-      end
-      # Sunny Day damage to Grass/Water
-      if [:Sun, :HarshSun].include?(field.weather)
-        if (b.pbHasType?(:GRASS) || b.pbHasType?(:WATER)) && 
-           !b.hasActiveAbility?([:SOLARPOWER, :CHLOROPHYLL])
-          dmg = b.totalhp / 8
-          b.pbReduceHP(dmg, false)
-          pbDisplay(_INTL("{1} is hurt by the intense sun!", b.pbThis))
-        end
-      end
+      next unless b.pbHasType?(:GRASS) || b.pbHasType?(:WATER)
+      next if b.hasActiveAbility?([:SOLARPOWER, :CHLOROPHYLL])
+      dmg = b.totalhp / 8
+      next unless dmg > 0
+      b.pbReduceHP(dmg, false)
+      pbDisplay(_INTL("{1} is hurt by the intense sun!", b.pbThis))
     end
   end
 end
@@ -6998,29 +7061,6 @@ class Battle::Move
 end
 
 #──────────────────────────────────────────────────────────────────────────────
-# PASSIVE A: Shadow Sky — doubled EOR damage on Dimensional Field
-# Normal Shadow Sky: 1/16 HP per turn. Dimensional: 1/8 HP per turn.
-#──────────────────────────────────────────────────────────────────────────────
-class Battle
-  alias dimensional_shadowsky_pbEndOfRoundPhase pbEndOfRoundPhase if method_defined?(:pbEndOfRoundPhase) && !method_defined?(:dimensional_shadowsky_pbEndOfRoundPhase)
-
-  def pbEndOfRoundPhase
-    respond_to?(:dimensional_shadowsky_pbEndOfRoundPhase) ? dimensional_shadowsky_pbEndOfRoundPhase : super
-    return unless has_field? && DIMENSIONAL_FIELD_IDS.include?(current_field.id)
-    return unless pbWeather == :ShadowSky
-
-    # Base Shadow Sky already dealt 1/16 HP — add another 1/16 for 1/8 total
-    allBattlers.each do |battler|
-      next if battler.fainted?
-      next if battler.pbHasType?(:DARK) || battler.pbHasType?(:GHOST)
-      next if battler.hasActiveAbility?(:OVERCOAT) || battler.hasActiveAbility?(:MAGICGUARD)
-      extra = battler.totalhp / 16
-      battler.pbReduceHP(extra, false) if extra > 0
-      # No separate message — the base game already showed "hurt by Shadow Sky"
-    end
-  end
-end
-
 #──────────────────────────────────────────────────────────────────────────────
 # MOVE C: Sleep → Damage Over Time (1/16 HP per turn)
 #──────────────────────────────────────────────────────────────────────────────
@@ -12810,6 +12850,200 @@ class Battle::Battler
   end
 end
 
+
+#===============================================================================
+# MAGIC FIELD MECHANICS
+# (Field data defined in 005_fieldtxt.rb; parsed automatically by 007)
+#
+# The Magic Field is a "special-type Big Top Arena". Instead of physical
+# Fighting moves triggering a High Striker roll, ANY special move of a Persona
+# type triggers a Mana Roll: rand(1..15) + user Sp. Atk stage.
+#
+# Hardcoded effects:
+#   1. Persona Mana Roll — rand(1..15) + Sp. Atk stage → spell name + multiplier
+#   2. Secret Power — confuses the target (pbAdditionalEffect override)
+#   3. Pure Power / Huge Power — boost Sp. Atk instead of Atk
+#   4. Telepathy — doubles Speed (passive SpeedCalc handler)
+#   5. Gravity / Magic Room / Trick Room — last 8 turns instead of 5
+#===============================================================================
+
+MAGIC_IDS = %i[magic].freeze
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Persona type data
+#
+# 3-tier types (Fire/Ice/Electric/Flying/Water/Ground):
+#   tier 0 = ×1.0  (Agi / Bufu / Zio / Garu / Aqua / Magna)
+#   tier 1 = ×1.5  (Agirao / Bufula / Zionga / Garula / Aques / Magnara)
+#   tier 2 = ×2.0  (Agidyne / Bufudyne / Ziodyne / Garudyne / Aquadyne / Magnadyne)
+#
+# 2-tier types (Dark / Fairy / Psychic):
+#   tier 0 = ×1.3 / ×1.5  (Mudo / Hama / "The magical energy boosted…")
+#   tier 1 = ×2.0          (Mudoon / Hamaon / "The magical energy is overwhelming!")
+# ─────────────────────────────────────────────────────────────────────────────
+MAGIC_PERSONA_TYPES = {
+  :FIRE     => { tiers: [1.0, 1.5, 2.0], spells: ["Agi!",   "Agirao!",   "Agidyne!"]    },
+  :ICE      => { tiers: [1.0, 1.5, 2.0], spells: ["Bufu!",  "Bufula!",   "Bufudyne!"]   },
+  :ELECTRIC => { tiers: [1.0, 1.5, 2.0], spells: ["Zio!",   "Zionga!",   "Ziodyne!"]    },
+  :FLYING   => { tiers: [1.0, 1.5, 2.0], spells: ["Garu!",  "Garula!",   "Garudyne!"]   },
+  :WATER    => { tiers: [1.0, 1.5, 2.0], spells: ["Aqua!",  "Aques!",    "Aquadyne!"]   },
+  :GROUND   => { tiers: [1.0, 1.5, 2.0], spells: ["Magna!", "Magnara!",  "Magnadyne!"]  },
+  :DARK     => { tiers: [1.3, 2.0],      spells: ["Mudo!",  "Mudoon!"]                  },
+  :FAIRY    => { tiers: [1.3, 2.0],      spells: ["Hama!",  "Hamaon!"]                  },
+  :PSYCHIC  => { tiers: [1.5, 2.0],      spells: ["The magical energy boosted the attack!",
+                                                   "The magical energy is overwhelming!"] },
+}.freeze
+
+# Moves with a fixed ×1.5 from fieldtxt damageMods — excluded from the roll
+# so they never get double-boosted.
+MAGIC_ROLL_EXCLUDED_MOVES = %i[
+  HIDDENPOWER
+  HIDDENPOWERNOR HIDDENPOWERFIR HIDDENPOWERFIG HIDDENPOWERWAT HIDDENPOWERFLY
+  HIDDENPOWERGRA HIDDENPOWERPOI HIDDENPOWERELE HIDDENPOWERGRO HIDDENPOWERPSY
+  HIDDENPOWERROC HIDDENPOWERICE HIDDENPOWERBUG HIDDENPOWERDRA HIDDENPOWERGHO
+  HIDDENPOWERDAR HIDDENPOWERSTE HIDDENPOWERFAI
+  SECRETPOWER
+].freeze
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MANA ROLL — core roll logic (mirroring Big Top's High Striker exactly,
+# but keyed to Sp. Atk stage and the Persona type table above).
+#
+# Roll thresholds (rand 1–15 + Sp. Atk stage):
+#
+#  3-tier types (Fire/Ice/Electric/Flying/Water/Ground):
+#    < 2   → ×0.50  "You've ran out of Mana!"
+#    2– 4  → ×0.75  "The magic has been drained from you!"
+#    5– 9  → ×1.00  tier-0 spell  (Agi! / Bufu! / etc.)
+#    10–13 → ×1.50  tier-1 spell  (Agirao! / etc.)
+#    ≥ 14  → ×2.00  tier-2 spell  (Agidyne! / etc.)
+#
+#  2-tier types (Dark / Fairy / Psychic):
+#    < 2   → ×0.50  "You've ran out of Mana!"
+#    2– 4  → ×0.75  "The magic has been drained from you!"
+#    5–12  → tier-0 mult + spell  (Mudo ×1.3 / Hama ×1.3 / Psy ×1.5)
+#    ≥ 13  → ×2.00  tier-1 spell  (Mudoon! / Hamaon! / "overwhelming!")
+# ─────────────────────────────────────────────────────────────────────────────
+class Battle::Move
+  alias magic_persona_pbCalcDamageMultipliers pbCalcDamageMultipliers if method_defined?(:pbCalcDamageMultipliers) && !method_defined?(:magic_persona_pbCalcDamageMultipliers)
+
+  def pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers)
+    respond_to?(:magic_persona_pbCalcDamageMultipliers) ? magic_persona_pbCalcDamageMultipliers(user, target, numTargets, type, baseDmg, multipliers) : super
+
+    return unless @battle.has_field? && MAGIC_IDS.include?(@battle.current_field.id)
+    return unless specialMove?
+    return if MAGIC_ROLL_EXCLUDED_MOVES.include?(@id)
+
+    type_data = MAGIC_PERSONA_TYPES[type]
+    return unless type_data
+
+    # Roll — mirrors Big Top: rand(1..15) + Sp. Atk stage
+    roll = rand(1..15) + user.stages[:SPECIAL_ATTACK]
+
+    mult = nil
+    msg  = nil
+
+    if roll < 2
+      mult = 0.5
+      msg  = "You've ran out of Mana!"
+    elsif roll < 5
+      mult = 0.75
+      msg  = "The magic has been drained from you!"
+    else
+      num_tiers = type_data[:tiers].length
+      if num_tiers == 3
+        tier = roll >= 14 ? 2 : roll >= 10 ? 1 : 0
+      else
+        tier = roll >= 13 ? 1 : 0
+      end
+      mult = type_data[:tiers][tier]
+      msg  = type_data[:spells][tier]
+    end
+
+    multipliers[:power_multiplier] *= mult
+    @battle.pbDisplay(_INTL(msg)) if msg && !msg.empty?
+  end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Secret Power → Confuse (same pattern as Sky Field above)
+# ─────────────────────────────────────────────────────────────────────────────
+class Battle::Move::EffectDependsOnEnvironment
+  alias magic_secretpower_pbAdditionalEffect pbAdditionalEffect if method_defined?(:pbAdditionalEffect) && !method_defined?(:magic_secretpower_pbAdditionalEffect)
+
+  def pbAdditionalEffect(user, target)
+    if @battle.has_field? && MAGIC_IDS.include?(@battle.current_field.id)
+      target.pbConfuse if target.pbCanConfuse?(user, false, self)
+      return
+    end
+    respond_to?(:magic_secretpower_pbAdditionalEffect) ? magic_secretpower_pbAdditionalEffect(user, target) : super
+  end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pure Power / Huge Power — boost Sp. Atk instead of Atk on Magic Field.
+# Full handler replacement; non-Magic behaviour is preserved in the else branch.
+# ─────────────────────────────────────────────────────────────────────────────
+Battle::AbilityEffects::DamageCalcFromUser.add(:PUREPOWER,
+  proc { |ability, user, target, move, mults, power, type|
+    if user.battle.has_field? && MAGIC_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 2 if move.specialMove?
+    else
+      mults[:attack_multiplier] *= 2 if move.physicalMove?
+    end
+  }
+)
+
+Battle::AbilityEffects::DamageCalcFromUser.add(:HUGEPOWER,
+  proc { |ability, user, target, move, mults, power, type|
+    if user.battle.has_field? && MAGIC_IDS.include?(user.battle.current_field.id)
+      mults[:attack_multiplier] *= 2 if move.specialMove?
+    else
+      mults[:attack_multiplier] *= 2 if move.physicalMove?
+    end
+  }
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Telepathy — doubles Speed on Magic Field (passive SpeedCalc)
+# ─────────────────────────────────────────────────────────────────────────────
+Battle::AbilityEffects::SpeedCalc.add(:TELEPATHY,
+  proc { |ability, battler, mult|
+    next mult * 2 if battler.battle.has_field? && MAGIC_IDS.include?(battler.battle.current_field.id)
+  }
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gravity / Magic Room / Trick Room — 8 turns instead of 5 on Magic Field.
+# Each move's pbEffectGeneral sets the counter to 5; we extend to 8 afterward.
+# ─────────────────────────────────────────────────────────────────────────────
+class Battle::Move::StartGravity
+  alias magic_gravity_pbEffectGeneral pbEffectGeneral if method_defined?(:pbEffectGeneral) && !method_defined?(:magic_gravity_pbEffectGeneral)
+  def pbEffectGeneral(user)
+    respond_to?(:magic_gravity_pbEffectGeneral) ? magic_gravity_pbEffectGeneral(user) : super
+    return unless @battle.has_field? && MAGIC_IDS.include?(@battle.current_field.id)
+    @battle.field.effects[PBEffects::Gravity] = 8
+  end
+end
+
+class Battle::Move::StartMagicRoom
+  alias magic_magicroom_pbEffectGeneral pbEffectGeneral if method_defined?(:pbEffectGeneral) && !method_defined?(:magic_magicroom_pbEffectGeneral)
+  def pbEffectGeneral(user)
+    respond_to?(:magic_magicroom_pbEffectGeneral) ? magic_magicroom_pbEffectGeneral(user) : super
+    return unless @battle.has_field? && MAGIC_IDS.include?(@battle.current_field.id)
+    @battle.field.effects[PBEffects::MagicRoom] = 8
+  end
+end
+
+class Battle::Move::StartTrickRoom
+  alias magic_trickroom_pbEffectGeneral pbEffectGeneral if method_defined?(:pbEffectGeneral) && !method_defined?(:magic_trickroom_pbEffectGeneral)
+  def pbEffectGeneral(user)
+    respond_to?(:magic_trickroom_pbEffectGeneral) ? magic_trickroom_pbEffectGeneral(user) : super
+    return unless @battle.has_field? && MAGIC_IDS.include?(@battle.current_field.id)
+    # Trick Room toggles — only extend if it was just activated (counter > 0)
+    @battle.field.effects[PBEffects::TrickRoom] = 8 if @battle.field.effects[PBEffects::TrickRoom] > 0
+  end
+end
 
 #===============================================================================
 # SUPER-HEATED FIELD MECHANICS

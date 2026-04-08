@@ -4365,4 +4365,143 @@ FIELDEFFECTS = {
 		},
 	},
 },
+:MAGIC => {
+	:name => "Magic Field",
+	:fieldMessage => [
+		"The mystical energy swirls!"
+	],
+	:graphic => ["Magic"],
+	# Secret Power causes Confusion — overridden in 010_Comprehensive_Field_Mechanics.rb.
+	# "AIRSLASH" is a placeholder so the base move parses without error.
+	:secretPower => "AIRSLASH",
+	:naturePower => :PSYCHIC,
+	:mimicry => :PSYCHIC,
+	:camouflage => :PSYCHIC,
+	:terrainPulse => :PSYCHIC,
+	# Abilities
+	:abilityActivate => {
+		:ZENMODE   => { always_active: true },         # Zen Mode always on
+		:POWERSPOT => {},                              # Power Spot 1.5x
+		:PUREPOWER => { spatk_mode: true },           # Boosts Sp. Atk instead of Atk (hardcoded in 010)
+		:TELEPATHY => { speed_double_passive: true },  # Doubles Speed (hardcoded in 010)
+	},
+	:abilityStatBoosts => {
+		:MAGICIAN => {
+			stat: :SPECIAL_ATTACK, stages: 1,
+			message: "{1}'s Magician power surged with magical energy!"
+		},
+		:ANTICIPATION => {
+			stat: :SPECIAL_ATTACK, stages: 1,
+			message: "{1}'s Anticipation heightened its magical power!"
+		},
+		:FOREWARN => {
+			stat: :SPECIAL_ATTACK, stages: 1,
+			message: "{1}'s Forewarn sharpened its magical focus!"
+		},
+		:MINDSEYE => {
+			stat: :SPECIAL_ATTACK, stages: 1,
+			message: "{1}'s Mind's Eye sharpened its magical focus!"
+		},
+		:MAGICBOUNCE => {
+			stat: :SPECIAL_DEFENSE, stages: 1,
+			message: "{1}'s Magic Bounce shielded its magical spirit!"
+		},
+		:MAGICGUARD => {
+			stat: :SPECIAL_DEFENSE, stages: 1,
+			message: "{1}'s Magic Guard fortified its magical spirit!"
+		},
+	},
+	:abilityMods => {
+		:POWERSPOT => { multiplier: 1.5 },
+	},
+	# Move stat boosts — all stages are doubled or supplemented on the Magic Field
+	:moveStatStageMods => {
+		:CALMMIND      => { stages: 2 },
+		:COSMICPOWER   => { stages: 2 },
+		:ESPERWING     => { stages: 2 },
+		:KINESIS       => { additional_stats: { :ATTACK => 1, :SPECIAL_ATTACK => 1 }, message: "The magic sharpened {1}'s focus!" },
+		:MEDITATE      => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "The magic deepened the meditation!" },
+		:MINDREADER    => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "The magic sharpened {1}'s mind!" },
+		:MIRACLEEYE    => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "The magic opened {1}'s inner eye!" },
+		:PSYCHUP       => { additional_stats: { :SPECIAL_ATTACK => 1 }, message: "The magic amplified {1}'s psyching up!" },
+		:MYSTICALPOWER => { additional_stats: { :SPECIAL_ATTACK => 2 }, message: "Mystical Power surged with magical energy!" },
+		:PSYCHIELDBASH => { additional_stats: { :SPECIAL_DEFENSE => 1 }, message: "The magical barrier fortified {1}'s spirit!" },
+		:TELEKINESIS   => { additional_stats: { :DEFENSE => -1, :SPECIAL_DEFENSE => -1 }, message: "The telekinesis disrupted {1}'s defenses!" },
+		:MAGICPOWDER   => { additional_stats: { :SPEED => -1 }, message: "The magic powder slowed {1} down!" },
+	},
+	:accuracyMods => {
+		90 => [:HYPNOSIS],
+	},
+	# ─── Persona spell tiers ──────────────────────────────────────────────────
+	# Fire/Ice/Electric/Flying/Water/Ground/Dark/Fairy/Psychic special moves all
+	# go through a RANDOM ROLL system in 010_Comprehensive_Field_Mechanics.rb.
+	# The roll is rand(1..15) + user's Sp. Atk stage, exactly like Big Top's
+	# High Striker but using Sp. Atk stage instead of Atk stage.
+	# Nothing for those types is listed here — all handled in 010.
+	#
+	# Only misc "magical-themed" moves of types NOT in the persona system get a
+	# fixed ×1.5 here (Ghost/Fighting/Rock/Grass/Normal).
+	# Hidden Power variants and Secret Power are also fixed here so they are
+	# not accidentally caught by the roll system.
+	:damageMods => {
+		1.5 => [
+			# Magical-themed moves — fixed ×1.5 (types outside persona roll families)
+			:ANCIENTPOWER,  # Rock
+			:MAGICALLEAF,   # Grass
+			:FLOWERTRICK,   # Grass
+			:POWERGEM,      # Rock
+			:AURASPHERE,    # Fighting
+			:FOCUSBLAST,    # Fighting
+			:HEX,           # Ghost
+			:SECRETPOWER,   # Normal (confuse via 010 override)
+			# Hidden Power — all variants fixed here, excluded from roll in 010
+			:HIDDENPOWER,
+			:HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT,
+			:HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE,
+			:HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE,
+			:HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR,
+			:HIDDENPOWERSTE, :HIDDENPOWERFAI,
+		],
+	},
+	:moveMessages => {
+		"The magical energy boosted the attack!" => [
+			:ANCIENTPOWER, :MAGICALLEAF, :FLOWERTRICK, :POWERGEM,
+			:AURASPHERE, :FOCUSBLAST, :HEX, :SECRETPOWER,
+			:HIDDENPOWER,
+			:HIDDENPOWERNOR, :HIDDENPOWERFIR, :HIDDENPOWERFIG, :HIDDENPOWERWAT,
+			:HIDDENPOWERFLY, :HIDDENPOWERGRA, :HIDDENPOWERPOI, :HIDDENPOWERELE,
+			:HIDDENPOWERGRO, :HIDDENPOWERPSY, :HIDDENPOWERROC, :HIDDENPOWERICE,
+			:HIDDENPOWERBUG, :HIDDENPOWERDRA, :HIDDENPOWERGHO, :HIDDENPOWERDAR,
+			:HIDDENPOWERSTE, :HIDDENPOWERFAI,
+		],
+	},
+	:typeMods => {},
+	:typeAddOns => {},
+	:moveEffects => {},
+	:typeBoosts => {},
+	:typeMessages => {},
+	:typeCondition => {},
+	:typeEffects => {},
+	:changeCondition => {},
+	:fieldChange => {},
+	:dontChangeBackup => [],
+	:changeMessage => {},
+	:statusMods => [
+		:CALMMIND, :COSMICPOWER, :ESPERWING, :KINESIS, :MEDITATE, :MINDREADER,
+		:MIRACLEEYE, :PSYCHUP, :MYSTICALPOWER, :PSYCHIELDBASH, :TELEKINESIS,
+		:MAGICPOWDER, :HYPNOSIS, :GRAVITY, :MAGICROOM, :TRICKROOM,
+	],
+	:changeEffects => {},
+	:seed => {
+		:seedtype => :MAGICALSEED,
+		:effect   => :Confusion,
+		:duration => 3,
+		:message  => "{1} was bewitched by the Magical Seed!",
+		:animation => :CONFUSION,
+		:stats => {
+			:SPECIAL_ATTACK  => 1,
+			:SPECIAL_DEFENSE => 1,
+		},
+	},
+},
 }
