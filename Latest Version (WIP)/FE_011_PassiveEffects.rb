@@ -147,7 +147,7 @@ end
 module Battle::FE_SwampSpeedHook
   def end_of_round_field_process
     super
-    return unless respond_to?(:FE) && FE == :SWAMP
+    return unless respond_to?(:FE) && self.FE == :SWAMP
     pbPriority(true).each do |b|
       next if b.fainted? || b.airborne?
       immune = [:CLEARBODY, :QUICKFEET, :SWIFTSWIM, :WHITESMOKE,
@@ -195,19 +195,21 @@ module FieldEffect
 
         when :CORROSIVEMIST
           # All non-Poison/Steel Pokemon are poisoned if not already
-          unless battler.pbHasType?(:POISON) || battler.pbHasType?(:STEEL) ||
-                 battler.status != :NONE ||
-                 battler.hasActiveAbility?(:MAGICGUARD) || battler.hasActiveAbility?(:IMMUNITY) ||
-                 battler.hasActiveAbility?(:PASTELVEIL) ||
-                 battle.allBattlers.any? { |b| !b.fainted? && b.hasActiveAbility?(:NEUTRALIZINGGAS) }
-            battler.pbPoison(nil) if battler.pbCanPoison?(nil, false)
-          end
+          return if battler.pbHasType?(:POISON) || battler.pbHasType?(:STEEL)
+          return if battler.status != :NONE
+          return if battler.hasActiveAbility?(:MAGICGUARD) || battler.hasActiveAbility?(:IMMUNITY)
+          return if battler.hasActiveAbility?(:PASTELVEIL)
+          # Neutralizing Gas blocks field effects
+          return if battle.allBattlers.any? { |b|
+            !b.fainted? && b.hasActiveAbility?(:NEUTRALIZINGGAS)
+          }
+          battler.pbPoison(nil) if battler.pbCanPoison?(nil, false)
 
         when :CORROSIVE
           # Sleeping non-Poison/Steel: 1/16 HP damage
-          if battler.asleep? && !battler.pbHasType?(:POISON) && !battler.pbHasType?(:STEEL) &&
-             !battler.hasActiveAbility?(:MAGICGUARD) && !battler.hasActiveAbility?(:WONDERGUARD) &&
-             !battler.hasActiveAbility?(:IMMUNITY)
+          if battler.asleep? && !battler.pbHasType?(:POISON) && !battler.pbHasType?(:STEEL)
+            return if battler.hasActiveAbility?(:MAGICGUARD) || battler.hasActiveAbility?(:WONDERGUARD)
+            return if battler.hasActiveAbility?(:IMMUNITY)
             dmg = [(battler.totalhp / 16.0).ceil, 1].max
             battler.pbReduceHP(dmg, false)
             battle.pbDisplay(_INTL("Poison seeped into {1}'s sleep!", battler.pbThis))

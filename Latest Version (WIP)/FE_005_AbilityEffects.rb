@@ -94,7 +94,7 @@ end
 # pbCanSwitchOut? is on Battle (not Battle::Battler) in v21.1; takes idxBattler param.
 module Battle::FE_ColossumSwitchHook
   def pbCanSwitchOut?(idxBattler, partyScene = nil)
-    if respond_to?(:FE) && FE == :COLOSSEUM
+    if respond_to?(:FE) && self.FE == :COLOSSEUM
       pbDisplay(_INTL("The Colosseum forbids switching!"))
       return false
     end
@@ -275,7 +275,7 @@ end
 # v21.1 handles burn inline in pbEORStatusProblemDamage; hook that instead.
 module Battle::FE_IcyBurnHook
   def pbEORStatusProblemDamage(priority)
-    if respond_to?(:FE) && FE == :ICY
+    if respond_to?(:FE) && self.FE == :ICY
       # Apply halved burn damage before the standard loop runs
       priority.each do |battler|
         next if battler.status != :BURN || !battler.takesIndirectDamage?

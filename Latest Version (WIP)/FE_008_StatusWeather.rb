@@ -147,7 +147,7 @@ end
 # CAVE — double Stealth Rock damage via pbEntryHazards hook
 module Battle::FE_CaveStealthRockHook
   def pbEntryHazards(battler)
-    if respond_to?(:FE) && FE == :CAVE
+    if respond_to?(:FE) && self.FE == :CAVE
       battler_side = battler.pbOwnSide
       if battler_side.effects[PBEffects::StealthRock] && battler.takesIndirectDamage? &&
          GameData::Type.exists?(:ROCK) && !battler.hasActiveItem?(:HEAVYDUTYBOOTS)
@@ -191,7 +191,7 @@ end
 
 #===============================================================================
 # 7. SUPERHEATED — THRASH / OUTRAGE / PETAL DANCE FATIGUE AFTER 1 TURN
-# MultiTurn counter is forced to 1 so the move ends this turn.
+# Force the Outrage counter to 1 so the move ends this turn.
 #
 # FIX: MultiTurnAttackOrRestoreHPAtEnd does not define pbEffectAgainstTarget.
 #      These moves use PBEffects::Outrage (not TwoTurnAttack) and manage their
@@ -448,7 +448,7 @@ end if defined?(Battle::Move::EffectDependsOnEnvironment)
 # Infernal Stealth Rock — Fire-type damage via pbEntryHazards hook
 module Battle::FE_InfernalStealthRockHook
   def pbEntryHazards(battler)
-    if respond_to?(:FE) && FE == :INFERNAL
+    if respond_to?(:FE) && self.FE == :INFERNAL
       battler_side = battler.pbOwnSide
       if battler_side.effects[PBEffects::StealthRock] && battler.takesIndirectDamage? &&
          !battler.hasActiveItem?(:HEAVYDUTYBOOTS)

@@ -15,6 +15,22 @@
 #===============================================================================
 
 #===============================================================================
+# MISSING PBEFFECTS CONSTANT
+#
+# PBEffects::Shelter is referenced in the core game's 002_Battler_Initialize.rb
+# but was never declared in any PBEffects definition file.  It must exist as a
+# unique integer before that file initialises the battler effects array.
+#
+# The value 300 is chosen to sit well above all standard PE v21.1 constants
+# (~130) and above the known range of Rejuvenation custom additions.  If you
+# have a 002_PBEffects.rb (or equivalent) that already defines constants in
+# this range, change 300 to any unused integer and keep it consistent.
+#===============================================================================
+module PBEffects
+  Shelter = 300 unless const_defined?(:Shelter)
+end
+
+#===============================================================================
 # LIGHTWEIGHT FIELD PROXY
 # battle.fe returns this object. Tracks which field it was built for and
 # self-invalidates if the field has changed — no create_new_field hook needed.

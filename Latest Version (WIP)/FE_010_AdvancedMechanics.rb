@@ -167,7 +167,7 @@ class Battle
   def pbOnBattlerEnteringBattle(idxBattler, *args)
     respond_to?(:chess_original_pbOnBattlerEnteringBattle) ?
       chess_original_pbOnBattlerEnteringBattle(idxBattler, *args) : super
-    return unless FE == :CHESS
+    return unless self.FE == :CHESS
     battler = @battlers[idxBattler]
     return unless battler && !battler.fainted?
 
@@ -420,7 +420,7 @@ class Battle
 
   def pbOnBattlerEnteringBattle(idxBattler, *args)
     fe_water_forms_original_pbOnBattlerEnteringBattle(idxBattler, *args)
-    return unless FE == :WATERSURFACE
+    return unless self.FE == :WATERSURFACE
     battler = @battlers[idxBattler]
     return unless battler && !battler.fainted?
     FieldEffect::EOR.maintain_water_forms(battler, self)

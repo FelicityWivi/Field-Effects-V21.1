@@ -99,7 +99,7 @@ class Battle
     end
     # On specific fields, extra Aqua Ring tick (original already gave 1/16; add another to reach 1/8)
     aqua_ring_boost_fields = %i[MISTY WATERSURFACE UNDERWATER SWAMP]
-    return unless aqua_ring_boost_fields.include?(FE)
+    return unless aqua_ring_boost_fields.include?(self.FE)
     priority.each do |b|
       next if b.fainted? || !b.canHeal?
       next unless b.effects[PBEffects::AquaRing]

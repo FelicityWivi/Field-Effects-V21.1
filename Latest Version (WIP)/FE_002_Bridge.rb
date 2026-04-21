@@ -253,6 +253,56 @@ module Battle::FieldFactory
 end
 
 #===============================================================================
+# BATTLEBACK → FIELD AUTO-CREATION
+#
+# The FieldFramework maps field IDs to classes via FieldFactory.get_field_class,
+# but has no reverse mapping for FIELDEFFECTS-defined fields (which all use the
+# dynamic Battle::Field_RejuvData rather than a registered subclass). This means
+# battlebacks like "Sahara" are never linked to :SAHARA at battle start.
+#
+# Fix: build a reverse map at load time from each field's :graphic array, then
+# hook Battle::Scene#set_fieldback — which IS called at battle start with the
+# battleback name — to fire create_new_field when no non-default field is active.
+#
+# Guard: only auto-create when the current field is nil or :INDOOR, so
+# mid-battle fieldback changes don't re-trigger this path. A reentrance flag
+# prevents looping when create_new_field itself calls set_fieldback.
+#===============================================================================
+
+# Lazy builder — deferred to first call so FIELDEFFECTS (FE_003) is guaranteed loaded.
+module FieldEffect
+  def self.graphic_to_field_map
+    @graphic_to_field_map ||= begin
+      map = {}
+      FIELDEFFECTS.each do |fid, data|
+        next if fid == :INDOOR
+        Array(data[:graphic]).each { |g| map[g.to_s] = fid }
+      end
+      map.freeze
+    end
+  end
+end
+
+module Battle::Scene::FE_BattlebackFieldHook
+  def set_fieldback(name, *args)
+    super
+    return if @_fe_fieldback_creating
+    return unless @battle&.respond_to?(:create_new_field)
+    current_id = @battle.current_field&.id rescue nil
+    return unless current_id.nil? || current_id == :INDOOR
+    fid = FieldEffect.graphic_to_field_map[name.to_s]
+    return unless fid
+    @_fe_fieldback_creating = true
+    begin
+      @battle.create_new_field(fid)
+    ensure
+      @_fe_fieldback_creating = false
+    end
+  end
+end
+Battle::Scene.prepend(Battle::Scene::FE_BattlebackFieldHook)
+
+#===============================================================================
 # HOOK pbEffectsAfterMove — fires our :after_move effect after each move
 #===============================================================================
 class Battle::Battler
