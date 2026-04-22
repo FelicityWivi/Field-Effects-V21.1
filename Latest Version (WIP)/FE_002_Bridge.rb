@@ -255,52 +255,84 @@ end
 #===============================================================================
 # BATTLEBACK → FIELD AUTO-CREATION
 #
-# The FieldFramework maps field IDs to classes via FieldFactory.get_field_class,
-# but has no reverse mapping for FIELDEFFECTS-defined fields (which all use the
-# dynamic Battle::Field_RejuvData rather than a registered subclass). This means
-# battlebacks like "Sahara" are never linked to :SAHARA at battle start.
+# Problem: the framework's create_new_field converts the field ID to lowercase
+# and looks for Battle::Field_cave, Battle::Field_volcanic, etc. Our plugin
+# only defines Battle::Field_RejuvData — there are no per-field subclasses.
 #
-# Fix: build a reverse map at load time from each field's :graphic array, then
-# hook Battle::Scene#set_fieldback — which IS called at battle start with the
-# battleback name — to fire create_new_field when no non-default field is active.
+# Two-pronged fix:
 #
-# Guard: only auto-create when the current field is nil or :INDOOR, so
-# mid-battle fieldback changes don't re-trigger this path. A reentrance flag
-# prevents looping when create_new_field itself calls set_fieldback.
+# 1. FE_CreateFieldHook (prepend into create_new_field):
+#    When the ID (upper or lower case) matches a key in FIELDEFFECTS, lazily
+#    register a thin Battle::Field_<lowercase> subclass that delegates to
+#    Battle::Field_RejuvData with the correct uppercase symbol. This means
+#    create_new_field's Object.const_defined? check succeeds.
+#
+# 2. FE_BackdropFieldHook (prepend into set_default_field):
+#    The framework already tries backdrop.downcase as a field ID; that handles
+#    exact-match cases (e.g. "Cave" → :cave → :CAVE).
+#    For non-exact names (e.g. "AshenBeach" → :BEACH) we consult the graphic
+#    reverse map built from each field's :graphic array.
 #===============================================================================
 
-# Lazy builder — deferred to first call so FIELDEFFECTS (FE_003) is guaranteed loaded.
+# Lazy graphic → field map (built once per process when first battle starts)
 module FieldEffect
   def self.graphic_to_field_map
     @graphic_to_field_map ||= begin
       map = {}
       FIELDEFFECTS.each do |fid, data|
-        next if fid == :INDOOR
-        Array(data[:graphic]).each { |g| map[g.to_s] = fid }
+        next if fid == :INDOOR || fid == :PSYCHIC
+        Array(data[:graphic]).each { |g| map[g.to_s] = fid if g && !g.empty? }
       end
       map.freeze
     end
   end
 end
 
-module Battle::Scene::FE_BattlebackFieldHook
-  def set_fieldback(name, *args)
-    super
-    return if @_fe_fieldback_creating
-    return unless @battle&.respond_to?(:create_new_field)
-    current_id = @battle.current_field&.id rescue nil
-    return unless current_id.nil? || current_id == :INDOOR
-    fid = FieldEffect.graphic_to_field_map[name.to_s]
-    return unless fid
-    @_fe_fieldback_creating = true
-    begin
-      @battle.create_new_field(fid)
-    ensure
-      @_fe_fieldback_creating = false
+# 1. Lazily register Battle::Field_<lowercase> for any FIELDEFFECTS key
+module Battle::FE_CreateFieldHook
+  def create_new_field(field_id, *args, **kwargs)
+    FE_RejuvDataLoader.ensure!
+
+    lower_str  = field_id.to_s.downcase          # "cave"
+    upper_sym  = field_id.to_s.upcase.to_sym     # :CAVE
+    class_name = "Battle::Field_#{lower_str}"    # "Battle::Field_cave"
+
+    if defined?(FIELDEFFECTS) && FIELDEFFECTS.key?(upper_sym) &&
+       !Object.const_defined?(class_name)
+      id_sym = upper_sym  # close over upper_sym for the subclass
+      klass = Class.new(Battle::Field_RejuvData) do
+        define_method(:initialize) do |battle, duration_arg = nil, *rest|
+          super(battle, id_sym, duration_arg, *rest)
+        end
+      end
+      Battle.const_set("Field_#{lower_str}", klass)
     end
+
+    super
   end
 end
-Battle::Scene.prepend(Battle::Scene::FE_BattlebackFieldHook)
+Battle.prepend(Battle::FE_CreateFieldHook)
+
+# 2. Catch non-exact battleback names via the graphic reverse map
+module Battle::FE_BackdropFieldHook
+  def set_default_field
+    backdrop_name = @backdrop.to_s
+    unless backdrop_name.empty?
+      # Exact case-insensitive match (e.g. "Cave" → :CAVE) — handled by
+      # FE_CreateFieldHook when the framework calls create_new_field(:cave).
+      # We only need to intervene for non-exact graphic names.
+      fid = FieldEffect.graphic_to_field_map[backdrop_name]
+      if fid && fid.to_s.downcase != backdrop_name.downcase
+        # Graphic name differs from field ID (e.g. "AshenBeach" → :BEACH)
+        if create_new_field(fid, Battle::Field::INFINITE_FIELD_DURATION)
+          return
+        end
+      end
+    end
+    super
+  end
+end
+Battle.prepend(Battle::FE_BackdropFieldHook)
 
 #===============================================================================
 # HOOK pbEffectsAfterMove — fires our :after_move effect after each move

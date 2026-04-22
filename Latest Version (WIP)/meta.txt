@@ -1,4 +1,5 @@
-﻿Name       = Field Effects
+﻿THIS IS A WORK IN PROGRESS AND DOESNT YET FULLY WORK
+Name       = Field Effects
 Version    = 3.0.0
 Essentials = 21.1
 Requires   = v21.1 Hotfixes, 1.0.9
