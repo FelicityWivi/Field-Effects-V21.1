@@ -2621,7 +2621,7 @@ Battle::AbilityEffects::OnBeingHit.add(:STENCH,
     # 60% chance to flinch on City Field
     next if rand(100) >= 60
     
-    user.pbFlinch
+    target.pbFlinch(user)
   }
 )
 
