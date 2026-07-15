@@ -2790,8 +2790,8 @@ class Battle
       next unless orig_type1 == :FIRE || orig_type2 == :FIRE
 
       battler.effects[PBEffects::BurnUp] = false
-      battler.type1 = orig_type1
-      battler.type2 = orig_type2
+      battler.typess[0] = orig_type1
+      battler.types[1] = orig_type2
 
       pbDisplay(_INTL("The Volcanic Field restored {1}'s Fire typing!", battler.pbThis))
       Console.echo_li("[VOLCANIC] Burn Up reset for #{battler.pbThis}") if $DEBUG
@@ -3765,8 +3765,8 @@ class Battle
       item    = args[1]
       if item == :MAGICALSEED && battler && !battler.fainted?
         # Change type to Normal
-        battler.type1 = :NORMAL
-        battler.type2 = :NONE
+        battler.types[0] = :NORMAL
+        battler.types[1] = :NONE
         battler.effects[PBEffects::Type3] = :NONE if PBEffects.const_defined?(:Type3)
         # Mark as normalized (all their moves will be Normal-type)
         battler.inverse_normalized = true
