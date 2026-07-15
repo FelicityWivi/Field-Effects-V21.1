@@ -2790,7 +2790,7 @@ class Battle
       next unless orig_type1 == :FIRE || orig_type2 == :FIRE
 
       battler.effects[PBEffects::BurnUp] = false
-      battler.typess[0] = orig_type1
+      battler.types[0] = orig_type1
       battler.types[1] = orig_type2
 
       pbDisplay(_INTL("The Volcanic Field restored {1}'s Fire typing!", battler.pbThis))
