@@ -2785,8 +2785,8 @@ class Battle
       next unless battler.effects[PBEffects::BurnUp]
 
       poke_data  = GameData::Species.get_species_form(battler.species, battler.form)
-      orig_type1 = poke_data.type1
-      orig_type2 = poke_data.type2
+      orig_type1 = poke_data.types[0]
+      orig_type2 = poke_data.types[1]
       next unless orig_type1 == :FIRE || orig_type2 == :FIRE
 
       battler.effects[PBEffects::BurnUp] = false
