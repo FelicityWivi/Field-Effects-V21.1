@@ -1,6 +1,13 @@
 #===============================================================================
 # FIELD EFFECTS — Bug Fixes
-# Load order: must be AFTER 010_Comprehensive_Field_Mechanics.rb
+# Load order: must be AFTER 010_Comprehensive_Field_Mechanics.rb AND AFTER
+# 015_Field_Move_Mechanics.rb / 016_Field_Item_Mechanics.rb.
+# Renumbered from 012 -> 017 (2026-07) because BUG 4's pbOwnSide/
+# pbLowerStatStage patches alias against 015's `forest_pbOwnSide` /
+# `forest_pbLowerStatStage` chain. Loading before 015 let 015 recapture this
+# file's own pbOwnSide method under that same alias name, so pbOwnSide ended
+# up calling itself through the alias -> SystemStackError. Keep this file
+# loading after 015/016 or BUG 4 will silently break (or recurse) again.
 # Compatible with: Pokémon Essentials v21.1, Field Effects plugin
 #
 # Fixes addressed:
